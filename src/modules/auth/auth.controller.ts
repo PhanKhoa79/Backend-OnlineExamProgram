@@ -1,0 +1,93 @@
+// src/modules/auth/auth.controller.ts
+import {
+  Controller,
+  Post,
+  Body,
+  Req,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { Request, Response } from 'express';
+import * as jwt from 'jsonwebtoken';
+
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('login')
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { access_token, refresh_token, user } =
+      await this.authService.login(loginDto);
+
+    res.cookie('accessToken', access_token, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, 
+    });
+
+    res.cookie('refreshToken', refresh_token, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { user };
+  }
+
+  @Post('refresh-token')
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies?.refreshToken;
+    const oldAccessToken = req.cookies?.accessToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    if (oldAccessToken) {
+      const decoded: any = jwt.decode(oldAccessToken);
+      const expiredAt = new Date(decoded.exp * 1000);
+      await this.authService.blacklistAccessToken(oldAccessToken, expiredAt);
+    }
+
+    const account = await this.authService.verifyRefreshToken(refreshToken);
+    const newAccessToken = this.authService.generateAccessToken(account);
+
+    res.cookie('accessToken', newAccessToken, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    return { accessToken: newAccessToken };
+  }
+
+  @Post('logout')
+  async logout(@Req() req: Request, @Res() res: Response) {
+    const accessToken = req.cookies?.accessToken;
+    const refreshToken = req.cookies?.refreshToken;
+
+    if (!accessToken || !refreshToken) {
+      throw new UnauthorizedException('Missing token');
+    }
+
+    await this.authService.logout(accessToken, refreshToken);
+
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
+    return res.status(200).json({ message: 'Logged out successfully' });
+  }
+}
