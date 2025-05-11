@@ -1,5 +1,5 @@
 // src/modules/auth/auth.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { HttpException, HttpStatus } from '@nestjs/common';
@@ -10,24 +10,36 @@ import { UnauthorizedException } from '@nestjs/common';
 import { calculateExpiryDate } from 'src/common/utils/date.util';
 import * as jwt from 'jsonwebtoken';
 import * as dotenv from 'dotenv';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { randomInt } from 'crypto';
+import { EmailService } from '../email/email.service';
 dotenv.config();
 
 @Injectable()
 export class AuthService {
   constructor(
-    private accountRepository: AccountRepository,
+    private readonly accountRepository: AccountRepository,
 
-    private authRepository: AuthRepository,
+    private readonly authRepository: AuthRepository,
+
+    private readonly emailService: EmailService,
   ) {}
 
   async validateUser(loginDto: LoginDto): Promise<any> {
     const { email, password } = loginDto;
     const account = await this.accountRepository.findByEmail(email);
-
     if (!account) {
       throw new HttpException(
         'Tài khoản không tồn tại',
         HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!account.isActive) {
+      throw new HttpException(
+        'Tài khoản chưa được kích hoạt',
+        HttpStatus.FORBIDDEN,
       );
     }
 
@@ -119,7 +131,8 @@ export class AuthService {
   }
 
   async isAccessTokenBlacklisted(token: string): Promise<void> {
-    const blacklisted = await this.authRepository.isAccessTokenBlacklisted(token);
+    const blacklisted =
+      await this.authRepository.isAccessTokenBlacklisted(token);
 
     if (blacklisted) {
       throw new UnauthorizedException('Token has been revoked.');
@@ -128,5 +141,74 @@ export class AuthService {
 
   async blacklistAccessToken(token: string, expiredAt: Date): Promise<void> {
     await this.authRepository.blacklistAccessToken(token, expiredAt);
+  }
+
+  async activateAccount(
+    token: string,
+    tempPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    // 1. Lấy account theo activationToken
+    const account = await this.accountRepository.findByActivationToken(token);
+    if (
+      !account ||
+      !account.activationTokenExpiresAt ||
+      account.activationTokenExpiresAt < new Date()
+    ) {
+      throw new BadRequestException(
+        'Link kích hoạt không hợp lệ hoặc đã hết hạn',
+      );
+    }
+
+    // 2. So sánh mật khẩu tạm
+    const match = await bcrypt.compare(tempPassword, account.password);
+    if (!match) {
+      throw new BadRequestException('Mật khẩu tạm thời không đúng');
+    }
+
+    // 3. Hash mật khẩu mới & cập nhật trạng thái
+    account.password = await bcrypt.hash(newPassword, 10);
+    account.isActive = true;
+    account.activationToken = null;
+    account.activationTokenExpiresAt = null;
+    account.updatedAt = new Date();
+
+    await this.accountRepository.saveAccount(account);
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
+    const acct = await this.accountRepository.findByEmail(dto.email);
+    if (!acct) throw new BadRequestException('Email chưa đăng ký');
+
+    // sinh code 6 số và expires in 15 phút
+    const code = Array.from({ length: 6 }, () => randomInt(0, 10)).join('');
+    const expiresAt = calculateExpiryDate('1m');
+
+    // lưu vào DB
+    acct.resetPasswordCode = code;
+    acct.resetPasswordExpiresAt = expiresAt;
+    await this.accountRepository.saveAccount(acct);
+
+    // gửi email
+    await this.emailService.sendForgotPasswordCode(dto.email, code, '5 phút');
+  }
+
+  /** 2. Đặt lại mật khẩu */
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    // tìm account có mã khớp và chưa hết hạn
+    const acct = await this.accountRepository.findByCodeResetPassword(dto.code);
+    if (
+      !acct ||
+      !acct.resetPasswordExpiresAt ||
+      acct.resetPasswordExpiresAt < new Date()
+    ) {
+      throw new BadRequestException('Mã xác thực không hợp lệ hoặc đã hết hạn');
+    }
+    // hash mật khẩu mới & xoá code
+    acct.password = await bcrypt.hash(dto.newPassword, 10);
+    acct.resetPasswordCode = null;
+    acct.resetPasswordExpiresAt = null;
+    acct.updatedAt = new Date();
+    await this.accountRepository.saveAccount(acct);
   }
 }

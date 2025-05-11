@@ -19,7 +19,6 @@ export class Accounts {
 
   @Column('character varying', {
     name: 'accountname',
-    unique: true,
     length: 255,
   })
   accountname: string;
@@ -50,7 +49,7 @@ export class Accounts {
   @Column('boolean', {
     name: 'is_active',
     nullable: true,
-    default: () => 'true',
+    default: () => 'false',
   })
   isActive: boolean | null;
 
@@ -66,6 +65,26 @@ export class Accounts {
     nullable: true,
   })
   activationTokenExpiresAt: Date | null;
+
+  @Column('character varying', {
+    name: 'url_avatar',
+    length: 255,
+    nullable: true,
+  })
+  urlAvatar: string | null;
+
+  @Column('character varying', {
+    name: 'reset_password_code',
+    length: 6,
+    nullable: true,
+  })
+  resetPasswordCode: string | null;
+
+  @Column('timestamp without time zone', {
+    name: 'reset_password_expires_at',
+    nullable: true,
+  })
+  resetPasswordExpiresAt: Date | null;
 
   @OneToMany(() => Notifications, (notifications) => notifications.account)
   notifications: Notifications[];

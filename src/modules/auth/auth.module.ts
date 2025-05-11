@@ -12,11 +12,13 @@ import { AuthRepository } from './auth.repository';
 import { AccountModule } from '../account/account.module';
 import { BlacklistToken } from 'src/database/entities/BlacklistToken';
 import { TokenCleanupService } from './token-cleanup.service';
-
+import { forwardRef } from '@nestjs/common';
+import { EmailModule } from '../email/email.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Accounts, BlacklistToken]),
-    AccountModule,
+    forwardRef(() => AccountModule),
+    EmailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

@@ -13,8 +13,9 @@ import {
   RequestMethod,
 } from '@nestjs/common';
 import { AuthMiddleware } from './modules/auth/auth.middleware';
+import { EmailModule } from './modules/email/email.module';
 
-const modules = [AuthModule, AccountModule];
+const modules = [AuthModule, AccountModule, EmailModule];
 
 @Module({
   imports: [
@@ -36,6 +37,9 @@ export class AppModule implements NestModule {
       .exclude(
         { path: 'auth/login', method: RequestMethod.POST },
         { path: 'auth/refresh-token', method: RequestMethod.POST },
+        { path: 'account/activate', method: RequestMethod.POST },
+        { path: 'auth/forgot-password', method: RequestMethod.POST },
+        { path: 'auth/reset-password', method: RequestMethod.POST },
       )
       .forRoutes('*');
   }

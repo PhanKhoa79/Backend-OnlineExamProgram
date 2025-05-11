@@ -6,11 +6,14 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  HttpCode,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -29,7 +32,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, 
+      maxAge: 15 * 60 * 1000,
     });
 
     res.cookie('refreshToken', refresh_token, {
@@ -89,5 +92,19 @@ export class AuthController {
     res.clearCookie('refreshToken');
 
     return res.status(200).json({ message: 'Logged out successfully' });
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.forgotPassword(dto);
+    return { message: 'Sent email successfully' };
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto);
+    return { message: 'Đổi mật khẩu thành công' };
   }
 }

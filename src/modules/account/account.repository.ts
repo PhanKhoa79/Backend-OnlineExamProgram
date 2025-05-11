@@ -1,4 +1,3 @@
-// src/modules/account/account.repository.ts
 import { DataSource, Repository } from 'typeorm';
 import { Accounts } from '../../database/entities/Accounts';
 import { Injectable } from '@nestjs/common';
@@ -15,5 +14,13 @@ export class AccountRepository extends Repository<Accounts> {
   async saveAccount(account: Partial<Accounts>): Promise<Accounts> {
     const newAccount = this.create(account);
     return this.save(newAccount);
+  }
+
+  async findByActivationToken(token: string): Promise<Accounts | null> {
+    return this.findOne({ where: { activationToken: token } });
+  }
+
+  async findByCodeResetPassword(code: string): Promise<Accounts | null> {
+    return this.findOne({ where: { resetPasswordCode: code } });
   }
 }

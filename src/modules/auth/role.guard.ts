@@ -28,12 +28,12 @@ export class RolesGuard implements CanActivate {
     }
 
     if (!roles.includes(user.role)) {
-        throw new ForbiddenException({
-          statusCode: 403,
-          message: 'Bạn không có quyền truy cập',
-        });
-      }
-  
-      return true;;
+      throw new ForbiddenException({
+        statusCode: 403,
+        message: 'Bạn không có quyền truy cập',
+      });
+    }
+
+    return true;
   }
 }

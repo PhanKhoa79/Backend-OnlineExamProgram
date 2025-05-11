@@ -13,27 +13,27 @@ export const seedAccounts = async (dataSource: DataSource) => {
 
   const accountsData: Array<Partial<Accounts>> = [
     {
-      accountname: 'student01',
+      accountname: 'PhanKhoa79',
       password: await bcrypt.hash('password123', 10),
-      email: 'student01@example.com',
-      role: 'student',  // Đây sẽ là 'student' | 'teacher' | 'admin'
-      isActive: true,
+      email: 'phankhoa1379@gmail.com',
+      role: 'student', // 'student' | 'teacher' | 'admin'
+      isActive: false,
       activationToken: null,
     },
     {
-      accountname: 'teacher01',
+      accountname: 'Khoahihi79',
       password: await bcrypt.hash('password123', 10),
-      email: 'teacher01@example.com',
-      role: 'teacher',  // Cũng là 'student' | 'teacher' | 'admin'
-      isActive: true,
+      email: 'khoafalke@gmail.com',
+      role: 'student', // 'student' | 'teacher' | 'admin'
+      isActive: false,
       activationToken: null,
     },
     {
-      accountname: 'admin01',
+      accountname: 'Khoahoho79',
       password: await bcrypt.hash('password123', 10),
-      email: 'admin01@example.com',
-      role: 'admin',  // 'student' | 'teacher' | 'admin'
-      isActive: true,
+      email: 'kienkhoa1379@gmail.com',
+      role: 'student', // 'student' | 'teacher' | 'admin'
+      isActive: false,
       activationToken: null,
     },
   ];
