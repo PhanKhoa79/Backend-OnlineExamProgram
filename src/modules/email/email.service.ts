@@ -39,7 +39,7 @@ export class EmailService {
       'templates',
       'activate-account.hbs',
     );
-    const templatePath = 
+    const templatePath =
       process.env.NODE_ENV === 'production' && existsSync(distPath)
         ? distPath
         : srcPath;
@@ -64,7 +64,7 @@ export class EmailService {
       await transport.sendMail(options);
       console.log('Email sent successfully');
     } catch (error) {
-        console.log('Error sending email: ', error);
+      console.log('Error sending email: ', error);
     }
   }
 
@@ -113,5 +113,5 @@ export class EmailService {
     } catch (error) {
       console.error('❌ Error sending forgot-password code:', error);
     }
-}
+  }
 }

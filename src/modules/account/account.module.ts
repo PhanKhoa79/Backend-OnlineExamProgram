@@ -9,14 +9,17 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { AuthModule } from '../auth/auth.module';
 import { forwardRef } from '@nestjs/common';
 import { EmailModule } from '../email/email.module';
+import { CleanupService } from './clearnupCodeReset.service';
+import { StudentModule } from '../student/student.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Accounts]),
     MailerModule,
     EmailModule,
+    StudentModule,
     forwardRef(() => AuthModule),
   ],
-  providers: [AccountService, AccountRepository],
+  providers: [AccountService, AccountRepository, CleanupService],
   controllers: [AccountController],
   exports: [AccountService, TypeOrmModule, AccountRepository],
 })

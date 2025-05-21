@@ -107,4 +107,11 @@ export class AuthController {
     await this.authService.resetPassword(dto);
     return { message: 'Đổi mật khẩu thành công' };
   }
+
+  @Post('verify-reset-code')
+  @HttpCode(200)
+  async verifyResetCode(@Body() body: { code: string }) {
+    await this.authService.verifyResetCode(body.code);
+    return { message: 'Mã hợp lệ' };
+  }
 }

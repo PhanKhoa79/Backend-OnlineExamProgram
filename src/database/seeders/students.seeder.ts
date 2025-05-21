@@ -25,9 +25,9 @@ export const seedStudents = async (dataSource: DataSource) => {
       email: 'nguyenvana@example.com',
       address: 'Hà Nội',
       // gán foreign key bằng object có id tương ứng
-      account: { id: 1 } as Accounts, 
-      class:   { id: 1 } as Classes,
-      cohort:  { id: 1 } as Cohorts,
+      account: { id: 1 } as Accounts,
+      class: { id: 1 } as Classes,
+      cohort: { id: 1 } as Cohorts,
     },
     {
       studentCode: 'SV002',
@@ -37,9 +37,9 @@ export const seedStudents = async (dataSource: DataSource) => {
       phoneNumber: '0912345678',
       email: 'tranthib@example.com',
       address: 'Hồ Chí Minh',
-      account: { id: 2 } as Accounts, 
-      class:   { id: 1 } as Classes,
-      cohort:  { id: 1 } as Cohorts,
+      account: { id: 2 } as Accounts,
+      class: { id: 1 } as Classes,
+      cohort: { id: 1 } as Cohorts,
     },
     {
       studentCode: 'SV003',
@@ -50,8 +50,8 @@ export const seedStudents = async (dataSource: DataSource) => {
       email: null,
       address: null,
       account: { id: 3 } as Accounts,
-      class:   { id: 2 } as Classes,
-      cohort:  { id: 2 } as Cohorts,
+      class: { id: 2 } as Classes,
+      cohort: { id: 2 } as Cohorts,
     },
   ];
 

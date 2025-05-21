@@ -26,7 +26,7 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  async validateUser(loginDto: LoginDto): Promise<any> {
+  async validateUser(loginDto: LoginDto): Promise<Accounts> {
     const { email, password } = loginDto;
     const account = await this.accountRepository.findByEmail(email);
     if (!account) {
@@ -84,7 +84,7 @@ export class AuthService {
     });
   }
 
-  async generateRefreshToken(account: Accounts) {
+  async generateRefreshToken(account: Accounts): Promise<string> {
     const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
     const token = jwt.sign(
       { sub: account.id },
@@ -180,9 +180,13 @@ export class AuthService {
     const acct = await this.accountRepository.findByEmail(dto.email);
     if (!acct) throw new BadRequestException('Email chưa đăng ký');
 
+    if (!acct.isActive) {
+      throw new BadRequestException('Tài khoản của bạn chưa được kích hoạt');
+    }
+
     // sinh code 6 số và expires in 15 phút
     const code = Array.from({ length: 6 }, () => randomInt(0, 10)).join('');
-    const expiresAt = calculateExpiryDate('1m');
+    const expiresAt = calculateExpiryDate('5m');
 
     // lưu vào DB
     acct.resetPasswordCode = code;
@@ -191,6 +195,17 @@ export class AuthService {
 
     // gửi email
     await this.emailService.sendForgotPasswordCode(dto.email, code, '5 phút');
+  }
+
+  async verifyResetCode(code: string): Promise<void> {
+    const acct = await this.accountRepository.findByCodeResetPassword(code);
+    if (
+      !acct ||
+      !acct.resetPasswordExpiresAt ||
+      acct.resetPasswordExpiresAt < new Date()
+    ) {
+      throw new BadRequestException('Mã xác thực không hợp lệ hoặc đã hết hạn');
+    }
   }
 
   /** 2. Đặt lại mật khẩu */

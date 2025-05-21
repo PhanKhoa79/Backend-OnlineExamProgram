@@ -14,8 +14,16 @@ import {
 } from '@nestjs/common';
 import { AuthMiddleware } from './modules/auth/auth.middleware';
 import { EmailModule } from './modules/email/email.module';
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+import { StudentModule } from './modules/student/student.module';
 
-const modules = [AuthModule, AccountModule, EmailModule];
+const modules = [
+  AuthModule,
+  AccountModule,
+  EmailModule,
+  CloudinaryModule,
+  StudentModule,
+];
 
 @Module({
   imports: [
@@ -26,6 +34,7 @@ const modules = [AuthModule, AccountModule, EmailModule];
       autoLoadEntities: true,
     }),
     ScheduleModule.forRoot(),
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -40,6 +49,7 @@ export class AppModule implements NestModule {
         { path: 'account/activate', method: RequestMethod.POST },
         { path: 'auth/forgot-password', method: RequestMethod.POST },
         { path: 'auth/reset-password', method: RequestMethod.POST },
+        { path: 'auth/verify-reset-code', method: RequestMethod.POST },
       )
       .forRoutes('*');
   }
