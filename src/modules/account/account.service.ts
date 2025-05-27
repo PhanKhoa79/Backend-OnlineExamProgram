@@ -14,6 +14,11 @@ import { In } from 'typeorm';
 import { UpdateAccountDto } from './dto/updateAccount.dto';
 import { generateRandomPassword } from 'src/common/utils/genderPasswordRandom.util';
 import { StudentService } from '../student/student.service';
+import * as ExcelJS from 'exceljs';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as csv from 'csv-parser';
+
 @Injectable()
 export class AccountService {
   constructor(
@@ -75,7 +80,14 @@ export class AccountService {
 
   async addAccountsForStudents(studentAccounts: CreateAccountDto[]) {
     const results = {
-      success: [] as { email: string; tempPassword: string }[],
+      success: [] as {  id: string;
+        accountname: string;
+        email: string;
+        role: string;
+        isActive: boolean;
+        urlAvatar: string;
+        tempPassword: string;
+      }[],
       failed: [] as { email: string; reason: string }[],
     };
 
@@ -104,7 +116,12 @@ export class AccountService {
         );
 
         results.success.push({
+          id: newAccount.id.toString(),
+          accountname: newAccount.accountname,
           email: newAccount.email,
+          role: newAccount.role,
+          isActive: newAccount.isActive ?? false,
+          urlAvatar: newAccount.urlAvatar ?? '',
           tempPassword,
         });
       } catch (err: any) {
@@ -193,5 +210,99 @@ export class AccountService {
       throw new HttpException('Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
     }
     return account;
+  }
+  async importAccountsFromFile(filePath: string, type: 'xlsx' | 'csv') {
+    const accounts: CreateAccountDto[] = [];
+
+    if (type === 'xlsx') {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(filePath);
+      const worksheet = workbook.getWorksheet(1);
+
+      if (!worksheet) {
+        throw new Error('Không tìm thấy worksheet!');
+      }
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; 
+
+        const values = row.values as any[];
+        const [accountname, email] = values.slice(1, 3);
+
+        if (accountname && email) {
+          accounts.push({
+            accountname: accountname.toString(),
+            email: typeof email === 'object' ? email.text : email.toString(),
+          } as CreateAccountDto);
+        }
+      });
+    } else if (type === 'csv') {
+      await new Promise<void>((resolve, reject) => {
+        fs.createReadStream(filePath)
+          .pipe(csv({ separator: '\t' }))
+          .on('data', (data) => {
+            if (data.accountname && data.email) {
+              accounts.push({
+                accountname: data.accountname,
+                email: data.email,
+              } as CreateAccountDto);
+            }
+          })
+          .on('end', resolve)
+          .on('error', reject);
+      });
+    } else {
+      throw new Error('Loại file không hỗ trợ!');
+    }
+
+    const result = await this.addAccountsForStudents(accounts);
+    fs.unlinkSync(filePath);
+    return result;
+  }
+
+  async exportAccounts(
+    accounts: AccountDto[],
+    res: Response,
+    format: 'excel' | 'csv' = 'excel',
+  ) {
+    const bom = '\uFEFF';
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Accounts');
+
+    worksheet.columns = [
+      { header: 'ID', key: 'id', width: 10 },
+      { header: 'Account Name', key: 'accountname', width: 20 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Role', key: 'role', width: 10 },
+      { header: 'Active', key: 'isActive', width: 10 },
+    ];
+
+    accounts.forEach((account) => {
+      worksheet.addRow(account);
+    });
+
+    if (format === 'excel') {
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename=accounts.xlsx',
+      );
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename=accounts.csv');
+
+      const buffer = await workbook.csv.writeBuffer();
+
+      res.write(bom);
+      res.write(buffer);
+      res.end();
+    }
   }
 }
