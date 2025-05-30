@@ -2,10 +2,14 @@ import { DataSource, Repository } from 'typeorm';
 import { Accounts } from '../../database/entities/Accounts';
 import { Injectable } from '@nestjs/common';
 import { AccountDto } from './dto/Account.dto';
+import { RoleService } from '../role/role.service';
 
 @Injectable()
 export class AccountRepository extends Repository<Accounts> {
-  constructor(private dataSource: DataSource) {
+  constructor(
+    private dataSource: DataSource,
+    private readonly roleService: RoleService,
+  ) {
     super(Accounts, dataSource.createEntityManager());
   }
 
@@ -20,7 +24,7 @@ export class AccountRepository extends Repository<Accounts> {
       id: account.id,
       accountname: account.accountname,
       email: account.email,
-      role: account.role,
+      role: account.role?.name || 'N/A',
       isActive: account.isActive ?? false,
       urlAvatar: account.urlAvatar,
     }));

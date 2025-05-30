@@ -1,11 +1,5 @@
 // src/modules/account/dto/create-account.dto.ts
-import {
-  IsString,
-  MinLength,
-  IsEnum,
-  IsOptional,
-  IsBoolean,
-} from 'class-validator';
+import { IsString, MinLength, IsOptional, IsBoolean } from 'class-validator';
 
 export class UpdateAccountDto {
   @IsString({ message: 'Tên tài khoản phải là chuỗi' })
@@ -17,10 +11,8 @@ export class UpdateAccountDto {
   @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
   password?: string;
 
-  @IsEnum(['student', 'teacher', 'admin'], {
-    message: 'Role phải là student, teacher hoặc admin',
-  })
-  role: 'student' | 'teacher' | 'admin';
+  @IsOptional()
+  role: string;
 
   @IsOptional()
   @IsBoolean({ message: 'isActive phải là boolean' })

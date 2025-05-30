@@ -25,6 +25,7 @@ import { extname } from 'path';
 import { AccountService } from './account.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/decorator/roles.decorator';
+import { Permissions } from '../auth/decorator/permissions.decotator';
 import { RolesGuard } from '../auth/role.guard';
 import { CreateAccountDto } from './dto/createAccount.dto';
 import { ActivateAccountDto } from './dto/activateAccount.dto';
@@ -35,6 +36,7 @@ import { UpdateAccountDto } from './dto/updateAccount.dto';
 import { Response } from 'express';
 import { join } from 'path';
 import * as fs from 'fs';
+import { PermissionsGuard } from '../auth/permissions.guard';
 
 @Controller('account')
 export class AccountController {
@@ -44,8 +46,8 @@ export class AccountController {
   ) {}
 
   @Get('all')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:view')
   async getAllAccounts(): Promise<AccountDto[]> {
     return await this.accountService.getAllAccounts();
   }
@@ -68,8 +70,8 @@ export class AccountController {
   }
 
   @Post('/add/user')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:create')
   async addAccount(@Body() body: CreateAccountDto) {
     try {
       const result = await this.accountService.addAccount(body);
@@ -80,8 +82,8 @@ export class AccountController {
   }
 
   @Post('/add/users')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:create')
   async addAccountStudents(@Body() body: CreateAccountDto[]) {
     try {
       const result = await this.accountService.addAccountsForStudents(body);
@@ -98,8 +100,8 @@ export class AccountController {
   }
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:update')
   async updateAccount(@Param('id') id: number, @Body() body: UpdateAccountDto) {
     try {
       const result = await this.accountService.updateAccount(Number(id), body);
@@ -113,8 +115,8 @@ export class AccountController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:delete')
   async deleteAccount(@Param('id') id: number) {
     try {
       await this.accountService.deleteAccountById(Number(id));
@@ -128,8 +130,8 @@ export class AccountController {
   }
 
   @Post('delete-many')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:delete')
   async deleteManyAccounts(@Body() body: DeleteAccountsDto) {
     try {
       await this.accountService.deleteAccountsByIds(body.ids);
@@ -156,14 +158,15 @@ export class AccountController {
   }
 
   @Post('/import')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:create')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
           callback(null, uniqueSuffix + extname(file.originalname));
         },
       }),
@@ -212,8 +215,8 @@ export class AccountController {
   }
 
   @Post('/export')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:view')
   async exportAccounts(
     @Body() body: { accounts: AccountDto[] },
     @Query('format') format: 'excel' | 'csv',
@@ -223,8 +226,8 @@ export class AccountController {
   }
 
   @Get('/download-template')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('admin')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:view')
   downloadStaticTemplate(
     @Query('type') type: 'xlsx' | 'csv',
     @Res() res: Response,

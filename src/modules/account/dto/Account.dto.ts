@@ -2,7 +2,7 @@ export class AccountDto {
   id: number;
   accountname: string;
   email: string;
-  role: 'student' | 'teacher' | 'admin';
+  role: string;
   isActive: boolean;
   urlAvatar: string | null;
 }

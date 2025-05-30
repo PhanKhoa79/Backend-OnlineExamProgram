@@ -3,7 +3,6 @@ import {
   IsString,
   MinLength,
   IsEmail,
-  IsEnum,
   IsOptional,
   IsBoolean,
 } from 'class-validator';
@@ -20,10 +19,8 @@ export class CreateAccountDto {
   @IsEmail({}, { message: 'Email không hợp lệ' })
   email: string;
 
-  @IsEnum(['student', 'teacher', 'admin'], {
-    message: 'Role phải là student, teacher hoặc admin',
-  })
-  role: 'student' | 'teacher' | 'admin';
+  @IsOptional()
+  role: string;
 
   @IsOptional()
   @IsBoolean({ message: 'isActive phải là boolean' })

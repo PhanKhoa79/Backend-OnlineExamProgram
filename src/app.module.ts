@@ -16,6 +16,7 @@ import { AuthMiddleware } from './modules/auth/auth.middleware';
 import { EmailModule } from './modules/email/email.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { StudentModule } from './modules/student/student.module';
+import { RoleModule } from './modules/role/role.module';
 
 const modules = [
   AuthModule,
@@ -23,6 +24,7 @@ const modules = [
   EmailModule,
   CloudinaryModule,
   StudentModule,
+  RoleModule,
 ];
 
 @Module({
@@ -50,6 +52,7 @@ export class AppModule implements NestModule {
         { path: 'auth/forgot-password', method: RequestMethod.POST },
         { path: 'auth/reset-password', method: RequestMethod.POST },
         { path: 'auth/verify-reset-code', method: RequestMethod.POST },
+        { path: 'auth/logout', method: RequestMethod.POST },
       )
       .forRoutes('*');
   }

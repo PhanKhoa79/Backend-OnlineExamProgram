@@ -11,12 +11,14 @@ import { forwardRef } from '@nestjs/common';
 import { EmailModule } from '../email/email.module';
 import { CleanupService } from './clearnupCodeReset.service';
 import { StudentModule } from '../student/student.module';
+import { RoleModule } from '../role/role.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Accounts]),
     MailerModule,
     EmailModule,
     StudentModule,
+    RoleModule,
     forwardRef(() => AuthModule),
   ],
   providers: [AccountService, AccountRepository, CleanupService],

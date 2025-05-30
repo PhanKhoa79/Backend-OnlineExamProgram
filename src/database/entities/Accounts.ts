@@ -3,11 +3,14 @@ import {
   Entity,
   Index,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Notifications } from './Notifications';
 import { Students } from './Students';
-import { Teachers } from './Teachers';
+import { Role } from './Role';
+import { LoginHistory } from './LoginHistory';
 
 @Index('accounts_accountname_key', ['accountname'], { unique: true })
 @Index('accounts_email_key', ['email'], { unique: true })
@@ -29,8 +32,9 @@ export class Accounts {
   @Column('character varying', { name: 'email', unique: true, length: 255 })
   email: string;
 
-  @Column('enum', { name: 'role', enum: ['student', 'teacher', 'admin'] })
-  role: 'student' | 'teacher' | 'admin';
+  @ManyToOne(() => Role, { eager: true })
+  @JoinColumn({ name: 'role_id' })
+  role: Role;
 
   @Column('timestamp without time zone', {
     name: 'created_at',
@@ -92,6 +96,6 @@ export class Accounts {
   @OneToMany(() => Students, (students) => students.account)
   students: Students[];
 
-  @OneToMany(() => Teachers, (teachers) => teachers.account)
-  teachers: Teachers[];
+  @OneToMany(() => LoginHistory, (loginHistory) => loginHistory.account)
+  loginHistories: LoginHistory[];
 }

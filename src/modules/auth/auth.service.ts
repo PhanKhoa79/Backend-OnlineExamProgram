@@ -14,6 +14,12 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { randomInt } from 'crypto';
 import { EmailService } from '../email/email.service';
+import { RoleService } from '../role/role.service';
+import { LoginHistory } from 'src/database/entities/LoginHistory';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Request } from 'express';
+import { LoginHistoryDto } from '../account/dto/loginHistory.dto';
 dotenv.config();
 
 @Injectable()
@@ -24,6 +30,11 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
 
     private readonly emailService: EmailService,
+
+    private readonly roleService: RoleService,
+
+    @InjectRepository(LoginHistory)
+    private loginHistoryRepo: Repository<LoginHistory>,
   ) {}
 
   async validateUser(loginDto: LoginDto): Promise<Accounts> {
@@ -49,7 +60,7 @@ export class AuthService {
       throw new HttpException('Mật khẩu không đúng', HttpStatus.BAD_REQUEST);
     }
 
-    if (account.role === 'student' && !account.isActive) {
+    if (account.role.name === 'student' && !account.isActive) {
       throw new HttpException(
         'Tài khoản chưa kích hoạt. Vui lòng kiểm tra email để xác nhận tài khoản.',
         HttpStatus.FORBIDDEN,
@@ -59,15 +70,30 @@ export class AuthService {
     return account;
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, req: Request) {
     const account = await this.validateUser(loginDto);
     const accessToken = this.generateAccessToken(account);
     const refreshToken = await this.generateRefreshToken(account);
 
+    await this.saveLoginHistory(account, req);
+
+    const permissions = await this.roleService.getPermissionsByRoleId(
+      account.role.id,
+    );
+
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
-      user: account,
+      user: {
+        id: account.id,
+        accountname: account.accountname,
+        email: account.email,
+        role: {
+          id: account.role.id,
+          name: account.role.name,
+        },
+        permissions,
+      },
     };
   }
 
@@ -225,5 +251,41 @@ export class AuthService {
     acct.resetPasswordExpiresAt = null;
     acct.updatedAt = new Date();
     await this.accountRepository.saveAccount(acct);
+  }
+
+  //hàm ghi log đăng nhập
+  async saveLoginHistory(account: Accounts, req: Request) {
+    const ip =
+      req.headers['x-forwarded-for']?.toString().split(',')[0] ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
+    const loginRecord = this.loginHistoryRepo.create({
+      account,
+      ipAddress: ip,
+      userAgent,
+    });
+
+    await this.loginHistoryRepo.save(loginRecord);
+  }
+
+  async getLoginHistoryByAccountId(
+    accountId: number,
+  ): Promise<LoginHistoryDto[]> {
+    const histories = await this.loginHistoryRepo.find({
+      where: {
+        account: { id: accountId },
+      },
+      relations: ['account'],
+      order: { loginTime: 'DESC' },
+    });
+
+    return histories.map(h => ({
+      accountId: h.account.id,
+      loginTime: h.loginTime,
+      ipAddress: h.ipAddress,
+      userAgent: h.userAgent,
+    }));
   }
 }

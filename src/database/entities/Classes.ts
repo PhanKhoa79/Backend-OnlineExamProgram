@@ -2,14 +2,11 @@ import {
   Column,
   Entity,
   Index,
-  JoinColumn,
   JoinTable,
   ManyToMany,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Cohorts } from './Cohorts';
 import { ExamSchedule } from './ExamSchedule';
 import { Students } from './Students';
 
@@ -21,12 +18,6 @@ export class Classes {
 
   @Column('character varying', { name: 'name', length: 255 })
   name: string;
-
-  @ManyToOne(() => Cohorts, (cohorts) => cohorts.classes, {
-    onDelete: 'RESTRICT',
-  })
-  @JoinColumn([{ name: 'cohort_id', referencedColumnName: 'id' }])
-  cohort: Cohorts;
 
   @ManyToMany(() => ExamSchedule, (examSchedule) => examSchedule.classes)
   @JoinTable({

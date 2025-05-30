@@ -10,7 +10,6 @@ import {
 import { StudentExams } from './StudentExams';
 import { Accounts } from './Accounts';
 import { Classes } from './Classes';
-import { Cohorts } from './Cohorts';
 
 @Index('students_email_key', ['email'], { unique: true })
 @Index('students_pkey', ['id'], { unique: true })
@@ -82,10 +81,4 @@ export class Students {
   })
   @JoinColumn([{ name: 'class_id', referencedColumnName: 'id' }])
   class: Classes;
-
-  @ManyToOne(() => Cohorts, (cohorts) => cohorts.students, {
-    onDelete: 'RESTRICT',
-  })
-  @JoinColumn([{ name: 'cohort_id', referencedColumnName: 'id' }])
-  cohort: Cohorts;
 }

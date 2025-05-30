@@ -13,7 +13,6 @@ import { Exams } from './Exams';
 import { Subjects } from './Subjects';
 import { ExamScheduleAssignments } from './ExamScheduleAssignments';
 import { Classes } from './Classes';
-import { Teachers } from './Teachers';
 
 @Index('exam_schedule_pkey', ['id'], { unique: true })
 @Entity('exam_schedule', { schema: 'public' })
@@ -71,14 +70,4 @@ export class ExamSchedule {
   @ManyToMany(() => Classes, (classes) => classes.examSchedules)
   classes: Classes[];
 
-  @ManyToMany(() => Teachers, (teachers) => teachers.examSchedules)
-  @JoinTable({
-    name: 'exam_schedule_invigilators',
-    joinColumns: [{ name: 'exam_schedule_id', referencedColumnName: 'id' }],
-    inverseJoinColumns: [
-      { name: 'invigilator_id', referencedColumnName: 'id' },
-    ],
-    schema: 'public',
-  })
-  teachers: Teachers[];
 }

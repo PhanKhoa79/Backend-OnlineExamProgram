@@ -7,6 +7,10 @@ import {
   Res,
   UnauthorizedException,
   HttpCode,
+  Param,
+  Get,
+  ParseIntPipe,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -14,6 +18,7 @@ import { Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -23,9 +28,12 @@ export class AuthController {
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
   ) {
-    const { access_token, refresh_token, user } =
-      await this.authService.login(loginDto);
+    const { access_token, refresh_token, user } = await this.authService.login(
+      loginDto,
+      req,
+    );
 
     res.cookie('accessToken', access_token, {
       path: '/',
@@ -113,5 +121,15 @@ export class AuthController {
   async verifyResetCode(@Body() body: { code: string }) {
     await this.authService.verifyResetCode(body.code);
     return { message: 'Mã hợp lệ' };
+  }
+
+  @Get('login-history/:accountId')
+  @UseGuards(JwtAuthGuard)
+  async getLoginHistoryByAccountId(
+    @Param('accountId', ParseIntPipe) accountId: number,
+  ) {
+    const histories =
+      await this.authService.getLoginHistoryByAccountId(accountId);
+    return histories;
   }
 }

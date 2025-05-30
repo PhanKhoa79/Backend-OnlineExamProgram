@@ -14,6 +14,7 @@ import { In } from 'typeorm';
 import { UpdateAccountDto } from './dto/updateAccount.dto';
 import { generateRandomPassword } from 'src/common/utils/genderPasswordRandom.util';
 import { StudentService } from '../student/student.service';
+import { RoleService } from '../role/role.service';
 import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 import * as fs from 'fs';
@@ -26,12 +27,13 @@ export class AccountService {
     private readonly emailService: EmailService,
 
     private readonly studentService: StudentService,
+    private readonly roleService: RoleService,
   ) {}
 
   private async createAccount(
     data: CreateAccountDto,
     tempPassword: string,
-    role: 'student' | 'teacher' | 'admin',
+    roleName: string,
   ): Promise<Accounts> {
     const existingEmail = await this.accountRepository.findByEmail(data.email);
     if (existingEmail) {
@@ -40,11 +42,15 @@ export class AccountService {
 
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
+    const roleEntity = await this.roleService.findByName(roleName);
+    if (!roleEntity) {
+      throw new Error(`Role ${roleName} không tồn tại!`);
+    }
     const toSave: Partial<Accounts> = {
       accountname: data.accountname,
       password: hashedPassword,
       email: data.email,
-      role: role,
+      role: roleEntity,
       isActive: data.isActive ?? false,
       urlAvatar: data.urlAvatar ?? '',
       createdAt: new Date(),
@@ -80,7 +86,8 @@ export class AccountService {
 
   async addAccountsForStudents(studentAccounts: CreateAccountDto[]) {
     const results = {
-      success: [] as {  id: string;
+      success: [] as {
+        id: string;
         accountname: string;
         email: string;
         role: string;
@@ -119,7 +126,7 @@ export class AccountService {
           id: newAccount.id.toString(),
           accountname: newAccount.accountname,
           email: newAccount.email,
-          role: newAccount.role,
+          role: newAccount.role.name,
           isActive: newAccount.isActive ?? false,
           urlAvatar: newAccount.urlAvatar ?? '',
           tempPassword,
@@ -148,7 +155,16 @@ export class AccountService {
     }
 
     if (data.accountname) account.accountname = data.accountname;
-    if (data.role) account.role = data.role;
+    if (data.role) {
+      const roleEntity = await this.roleService.findByName(data.role);
+      if (!roleEntity) {
+        throw new HttpException(
+          `Role ${data.role} không tồn tại`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      account.role = roleEntity;
+    }
     if (typeof data.isActive === 'boolean') account.isActive = data.isActive;
     if (data.urlAvatar) account.urlAvatar = data.urlAvatar;
 
@@ -199,7 +215,7 @@ export class AccountService {
 
     return {
       accountname: account.accountname,
-      role: account.role,
+      role: account.role.name,
     };
   }
 
@@ -224,7 +240,7 @@ export class AccountService {
       }
 
       worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return; 
+        if (rowNumber === 1) return;
 
         const values = row.values as any[];
         const [accountname, email] = values.slice(1, 3);
@@ -287,19 +303,11 @@ export class AccountService {
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
-      res.setHeader(
-        'Content-Disposition',
-        'attachment; filename=accounts.xlsx',
-      );
-
       await workbook.xlsx.write(res);
       res.end();
     } else if (format === 'csv') {
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename=accounts.csv');
-
       const buffer = await workbook.csv.writeBuffer();
-
       res.write(bom);
       res.write(buffer);
       res.end();
