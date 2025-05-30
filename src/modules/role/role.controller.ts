@@ -61,7 +61,8 @@ export class RoleController {
     @Body() createRoleDto: CreateRoleDto,
   ): Promise<RoleWithPermissionsDto> {
     try {
-      const newRole = await this.roleService.createRoleWithPermissions(createRoleDto);
+      const newRole =
+        await this.roleService.createRoleWithPermissions(createRoleDto);
       return newRole;
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
