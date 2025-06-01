@@ -4,6 +4,7 @@ import { StudentDto } from './dto/student.dto';
 import { Students } from 'src/database/entities/Students';
 import { NotFoundException } from '@nestjs/common';
 import { Accounts } from 'src/database/entities/Accounts';
+import { mapStudentToDto } from './mapper/mapStudent.mapper';
 
 @Injectable()
 export class StudentService {
@@ -46,5 +47,15 @@ export class StudentService {
 
   async getStudentByEmail(email: string): Promise<Students | null> {
     return await this.studentRepository.findByEmail(email);
+  }
+
+  async getStudentDtoByEmail(email: string): Promise<StudentDto | null> {
+    const student = await this.studentRepository.findOne({
+      where: { email },
+    });
+
+    if (!student) return null;
+
+    return mapStudentToDto(student);
   }
 }

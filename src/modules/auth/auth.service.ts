@@ -19,6 +19,7 @@ import { LoginHistory } from 'src/database/entities/LoginHistory';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
+import { ChangePasswordDto } from './dto/changePassword.dto';
 import { LoginHistoryDto } from '../account/dto/loginHistory.dto';
 dotenv.config();
 
@@ -92,6 +93,7 @@ export class AuthService {
           id: account.role.id,
           name: account.role.name,
         },
+        urlAvatar: account.urlAvatar,
         permissions,
       },
     };
@@ -268,6 +270,23 @@ export class AuthService {
     });
 
     await this.loginHistoryRepo.save(loginRecord);
+  }
+
+  async changePassword(accountId: number, dto: ChangePasswordDto) {
+    const account = await this.accountRepository.findOne({
+      where: { id: accountId },
+    });
+
+    if (!account) throw new Error('Không tìm thấy tài khoản');
+
+    const isMatch = await bcrypt.compare(dto.oldPassword, account.password);
+    if (!isMatch) throw new Error('Mật khẩu cũ không đúng');
+
+    const hashed = await bcrypt.hash(dto.newPassword, 10);
+    account.password = hashed;
+    await this.accountRepository.save(account);
+
+    return { message: 'Đổi mật khẩu thành công' };
   }
 
   async getLoginHistoryByAccountId(

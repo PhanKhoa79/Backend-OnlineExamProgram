@@ -19,6 +19,7 @@ import * as jwt from 'jsonwebtoken';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { ChangePasswordDto } from './dto/changePassword.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -85,7 +86,7 @@ export class AuthController {
     return { accessToken: newAccessToken };
   }
 
-  @Post('logout')
+  @Post('/logout')
   async logout(@Req() req: Request, @Res() res: Response) {
     const accessToken = req.cookies?.accessToken;
     const refreshToken = req.cookies?.refreshToken;
@@ -121,6 +122,18 @@ export class AuthController {
   async verifyResetCode(@Body() body: { code: string }) {
     await this.authService.verifyResetCode(body.code);
     return { message: 'Mã hợp lệ' };
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request, // hoặc @GetUser() user
+  ) {
+    const accountId = (req as any).user?.userId; // 👈 lấy từ JWT
+    if (!accountId) throw new UnauthorizedException();
+
+    return this.authService.changePassword(accountId, dto);
   }
 
   @Get('login-history/:accountId')
