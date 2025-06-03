@@ -2,13 +2,13 @@ import {
   Column,
   Entity,
   Index,
-  JoinTable,
-  ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { ExamSchedule } from './ExamSchedule';
 import { Students } from './Students';
+import { ExamScheduleAssignments } from './ExamScheduleAssignments';
 
 @Index('classes_pkey', ['id'], { unique: true })
 @Entity('classes', { schema: 'public' })
@@ -19,17 +19,18 @@ export class Classes {
   @Column('character varying', { name: 'name', length: 255 })
   name: string;
 
-  @ManyToMany(() => ExamSchedule, (examSchedule) => examSchedule.classes)
-  @JoinTable({
-    name: 'exam_schedule_classes',
-    joinColumns: [{ name: 'class_id', referencedColumnName: 'id' }],
-    inverseJoinColumns: [
-      { name: 'exam_schedule_id', referencedColumnName: 'id' },
-    ],
-    schema: 'public',
-  })
-  examSchedules: ExamSchedule[];
+  @Column({ type: 'varchar', length: 50, unique: true })
+  code: string;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
 
   @OneToMany(() => Students, (students) => students.class)
   students: Students[];
+
+  @OneToMany(() => ExamScheduleAssignments, (assignment) => assignment.class)
+  examScheduleAssignments: ExamScheduleAssignments[];
 }

@@ -1,14 +1,41 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { StudentRepository } from './student.repository';
 import { StudentDto } from './dto/student.dto';
 import { Students } from 'src/database/entities/Students';
 import { NotFoundException } from '@nestjs/common';
 import { Accounts } from 'src/database/entities/Accounts';
-import { mapStudentToDto } from './mapper/mapStudent.mapper';
+import { StudentMapper } from './mapper/mapStudent.mapper';
+import { CreateStudentDto } from './dto/create-student.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Classes } from 'src/database/entities/Classes';
+import { Repository } from 'typeorm';
+import { UpdateStudentDto } from './dto/update-student.dto';
 
 @Injectable()
 export class StudentService {
-  constructor(private readonly studentRepository: StudentRepository) {}
+  constructor(
+    private readonly studentRepository: StudentRepository,
+
+    @InjectRepository(Classes)
+    private readonly classRepo: Repository<Classes>,
+  ) {}
+
+  async create(dto: CreateStudentDto): Promise<Students> {
+    const existing = await this.studentRepository.findOne({
+      where: [{ studentCode: dto.studentCode }, { email: dto.email }],
+    });
+    if (existing) throw new ConflictException('Mã sinh viên hoặc email đã tồn tại');
+
+    const classRef = await this.classRepo.findOneBy({ id: dto.classId });
+    if (!classRef) throw new NotFoundException('Không tìm thấy lớp');
+
+    const student = this.studentRepository.create({
+      ...dto,
+      class: classRef,
+    });
+
+    return this.studentRepository.save(student);
+  }
 
   async updateStudent(id: number, updateData: Partial<Students>) {
     const student = await this.studentRepository.findOne({
@@ -29,6 +56,29 @@ export class StudentService {
     return await this.studentRepository.save(student);
   }
 
+  async update(id: number, dto: UpdateStudentDto): Promise<Students> {
+    const student = await this.studentRepository.findOne({
+      where: { id },
+      relations: ['class'],
+    });
+
+    if (!student) {
+      throw new NotFoundException(`Không tìm thấy sinh viên ID ${id}`);
+    }
+
+    if (dto.classId !== undefined) {
+      const targetClass = await this.classRepo.findOne({
+        where: { id: dto.classId },
+      });
+      if (!targetClass) {
+        throw new NotFoundException(`Không tìm thấy lớp với ID ${dto.classId}`);
+      }
+      student.class = targetClass;
+    }
+
+    this.studentRepository.merge(student, dto);
+    return await this.studentRepository.save(student);
+  }
   async attachAccountToStudentByEmail(email: string, account: Accounts) {
     const student = await this.getStudentByEmail(email);
 
@@ -56,6 +106,43 @@ export class StudentService {
 
     if (!student) return null;
 
-    return mapStudentToDto(student);
+    return StudentMapper.toResponseDto(student);
+  }
+
+  async findById(id: number): Promise<Students> {
+    const student = await this.studentRepository.findOne({
+      where: { id },
+      relations: ['class'],
+    });
+    if (!student) throw new NotFoundException('Không tìm thấy sinh viên');
+    return student;
+  }
+
+  async findAll(): Promise<Students[]> {
+    return this.studentRepository.find({
+      relations: ['class'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async delete(id: number): Promise<void> {
+    const result = await this.studentRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(
+        `Không tìm thấy sinh viên để xóa (ID: ${id})`,
+      );
+    }
+  }
+
+  async findByClassId(classId: number): Promise<StudentDto[]> {
+    const students = await this.studentRepository.find({
+      where: {
+        class: { id: classId },
+      },
+      relations: ['class', 'account'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return StudentMapper.toResponseList(students);
   }
 }

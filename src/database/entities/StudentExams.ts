@@ -18,18 +18,20 @@ export class StudentExams {
   @PrimaryGeneratedColumn({ type: 'integer', name: 'id' })
   id: number;
 
-  @Column('timestamp without time zone', {
-    name: 'start_time',
-    nullable: true,
-    default: () => 'now()',
-  })
-  startTime: Date | null;
-
-  @Column('timestamp without time zone', { name: 'end_time', nullable: true })
-  endTime: Date | null;
-
-  @Column('double precision', { name: 'score', nullable: true, precision: 53 })
+  @Column('double precision', { name: 'score', nullable: true })
   score: number | null;
+
+  @Column('boolean', { name: 'is_submitted', default: false })
+  isSubmitted: boolean;
+
+  @Column('timestamp without time zone', { name: 'started_at', nullable: true })
+  startedAt: Date | null;
+
+  @Column('timestamp without time zone', {
+    name: 'submitted_at',
+    nullable: true,
+  })
+  submittedAt: Date | null;
 
   @OneToMany(() => AntiCheatLogs, (antiCheatLogs) => antiCheatLogs.studentExam)
   antiCheatLogs: AntiCheatLogs[];

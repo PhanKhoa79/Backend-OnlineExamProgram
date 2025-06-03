@@ -23,6 +23,7 @@ export class StudentRepository extends Repository<Students> {
       studentCode: student.studentCode,
       fullName: student.fullName,
       email: student.email,
+      classId: student.class?.id ?? null,
     }));
   }
 

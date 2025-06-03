@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Exams } from './Exams';
 import { ExamSchedule } from './ExamSchedule';
+import { Classes } from './Classes';
 
 @Index('exam_schedule_assignments_pkey', ['id'], { unique: true })
 @Entity('exam_schedule_assignments', { schema: 'public' })
@@ -15,35 +16,18 @@ export class ExamScheduleAssignments {
   @PrimaryGeneratedColumn({ type: 'integer', name: 'id' })
   id: number;
 
-  @Column('character varying', { name: 'class_name', length: 255 })
-  className: string;
-
   @Column('character varying', {
-    name: 'room_name',
-    nullable: true,
-    length: 255,
+    name: 'code',
+    length: 50,
+    unique: true,
   })
-  roomName: string | null;
-
-  @Column('integer', { name: 'quantity', nullable: true })
-  quantity: number | null;
-
-  @Column('character varying', {
-    name: 'exam_type',
-    nullable: true,
-    length: 20,
-  })
-  examType: string | null;
+  code: string;
 
   @Column('boolean', {
     name: 'randomize_order',
-    nullable: true,
-    default: () => 'false',
+    default: false,
   })
-  randomizeOrder: boolean | null;
-
-  @Column('text', { name: 'note', nullable: true })
-  note: string | null;
+  randomizeOrder: boolean;
 
   @ManyToOne(() => Exams, (exams) => exams.examScheduleAssignments, {
     onDelete: 'CASCADE',
@@ -53,9 +37,20 @@ export class ExamScheduleAssignments {
 
   @ManyToOne(
     () => ExamSchedule,
-    (examSchedule) => examSchedule.examScheduleAssignments,
-    { onDelete: 'CASCADE' },
+    (schedule) => schedule.examScheduleAssignments,
+    {
+      onDelete: 'CASCADE',
+    },
   )
+  @Column('text', { name: 'description', nullable: true })
+  description: string | null;
+
   @JoinColumn([{ name: 'exam_schedule_id', referencedColumnName: 'id' }])
   examSchedule: ExamSchedule;
+
+  @ManyToOne(() => Classes, (cls) => cls.examScheduleAssignments, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn([{ name: 'class_id', referencedColumnName: 'id' }])
+  class: Classes;
 }

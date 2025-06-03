@@ -3,8 +3,10 @@ export class StudentDto {
   studentCode: string;
   fullName: string;
   email: string | null;
-  address?: string;
+  address?: string | null;
   dateOfBirth?: string;
-  phoneNumber?: string;
+  phoneNumber?: string | null;
   gender?: 'Nam' | 'Nữ' | 'Khác';
+  classId: number;
+  accountId?: number | null;
 }

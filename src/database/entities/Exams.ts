@@ -10,7 +10,6 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Questions } from './Questions';
-import { ExamSchedule } from './ExamSchedule';
 import { ExamScheduleAssignments } from './ExamScheduleAssignments';
 import { Subjects } from './Subjects';
 import { StudentExams } from './StudentExams';
@@ -32,19 +31,11 @@ export class Exams {
     nullable: true,
     default: () => 'false',
   })
-  isPractice: boolean | null;
-
   @Column('enum', {
     name: 'exam_type',
-    enum: ['practice', 'revision', 'official'],
+    enum: ['practice', 'official'],
   })
-  examType: 'practice' | 'revision' | 'official';
-
-  @Column('timestamp without time zone', { name: 'start_date', nullable: true })
-  startDate: Date | null;
-
-  @Column('timestamp without time zone', { name: 'end_date', nullable: true })
-  endDate: Date | null;
+  examType: 'practice' | 'official';
 
   @Column('integer', { name: 'total_questions', nullable: true })
   totalQuestions: number | null;
@@ -64,9 +55,6 @@ export class Exams {
     schema: 'public',
   })
   questions: Questions[];
-
-  @OneToMany(() => ExamSchedule, (examSchedule) => examSchedule.exam)
-  examSchedules: ExamSchedule[];
 
   @OneToMany(
     () => ExamScheduleAssignments,

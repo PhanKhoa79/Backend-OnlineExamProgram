@@ -4,6 +4,8 @@ import {
   Index,
   OneToMany,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { ExamSchedule } from './ExamSchedule';
 import { Exams } from './Exams';
@@ -13,21 +15,23 @@ import { Questions } from './Questions';
 @Index('subjects_pkey', ['id'], { unique: true })
 @Entity('subjects', { schema: 'public' })
 export class Subjects {
-  @PrimaryGeneratedColumn({ type: 'integer', name: 'id' })
+  @PrimaryGeneratedColumn()
   id: number;
 
-  @Column('character varying', { name: 'name', length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column('character varying', { name: 'code', unique: true, length: 50 })
+  @Column({ type: 'varchar', length: 50, unique: true })
   code: string;
 
-  @Column('timestamp without time zone', {
-    name: 'created_at',
-    nullable: true,
-    default: () => 'now()',
-  })
-  createdAt: Date | null;
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
 
   @OneToMany(() => ExamSchedule, (examSchedule) => examSchedule.subject)
   examSchedules: ExamSchedule[];

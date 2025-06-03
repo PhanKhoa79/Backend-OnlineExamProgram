@@ -3,57 +3,48 @@ import {
   Entity,
   Index,
   JoinColumn,
-  JoinTable,
-  ManyToMany,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { Exams } from './Exams';
 import { Subjects } from './Subjects';
 import { ExamScheduleAssignments } from './ExamScheduleAssignments';
-import { Classes } from './Classes';
-
 @Index('exam_schedule_pkey', ['id'], { unique: true })
 @Entity('exam_schedule', { schema: 'public' })
 export class ExamSchedule {
   @PrimaryGeneratedColumn({ type: 'integer', name: 'id' })
   id: number;
 
-  @Column('date', { name: 'schedule_date' })
-  scheduleDate: string;
+  @Column('character varying', {
+    name: 'code',
+    length: 50,
+    unique: true,
+  })
+  code: string;
 
-  @Column('time without time zone', { name: 'start_time' })
-  startTime: string;
+  @Column('timestamp', { name: 'start_time' })
+  startTime: Date;
 
-  @Column('time without time zone', { name: 'end_time' })
-  endTime: string;
+  @Column('timestamp', { name: 'end_time' })
+  endTime: Date;
 
-  @Column('enum', { name: 'status', enum: ['scheduled', 'done', 'cancelled'] })
+  @Column('enum', {
+    name: 'status',
+    enum: ['scheduled', 'done', 'cancelled'],
+    default: 'scheduled',
+  })
   status: 'scheduled' | 'done' | 'cancelled';
 
-  @Column('text', { name: 'note', nullable: true })
-  note: string | null;
+  @Column('text', { name: 'description', nullable: true })
+  description: string | null;
 
-  @Column('timestamp without time zone', {
-    name: 'created_at',
-    nullable: true,
-    default: () => 'now()',
-  })
-  createdAt: Date | null;
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
+  createdAt: Date;
 
-  @Column('timestamp without time zone', {
-    name: 'updated_at',
-    nullable: true,
-    default: () => 'now()',
-  })
-  updatedAt: Date | null;
-
-  @ManyToOne(() => Exams, (exams) => exams.examSchedules, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn([{ name: 'exam_id', referencedColumnName: 'id' }])
-  exam: Exams;
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
+  updatedAt: Date;
 
   @ManyToOne(() => Subjects, (subjects) => subjects.examSchedules, {
     onDelete: 'CASCADE',
@@ -63,11 +54,7 @@ export class ExamSchedule {
 
   @OneToMany(
     () => ExamScheduleAssignments,
-    (examScheduleAssignments) => examScheduleAssignments.examSchedule,
+    (assignment) => assignment.examSchedule,
   )
   examScheduleAssignments: ExamScheduleAssignments[];
-
-  @ManyToMany(() => Classes, (classes) => classes.examSchedules)
-  classes: Classes[];
-
 }

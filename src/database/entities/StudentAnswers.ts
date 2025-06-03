@@ -1,4 +1,11 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Column,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+} from 'typeorm';
 import { Answers } from './Answers';
 import { Questions } from './Questions';
 import { StudentExams } from './StudentExams';
@@ -8,11 +15,24 @@ import { StudentExams } from './StudentExams';
 })
 @Entity('student_answers', { schema: 'public' })
 export class StudentAnswers {
-  @Column('integer', { primary: true, name: 'student_exam_id' })
+  @PrimaryColumn({ name: 'student_exam_id', type: 'integer' })
   studentExamId: number;
 
-  @Column('integer', { primary: true, name: 'question_id' })
+  @PrimaryColumn({ name: 'question_id', type: 'integer' })
   questionId: number;
+
+  @Column('integer', { name: 'answer_id', nullable: true })
+  answerId: number | null;
+
+  @Column('timestamp', {
+    name: 'answered_at',
+    nullable: true,
+    default: () => 'now()',
+  })
+  answeredAt: Date | null;
+
+  @Column('boolean', { name: 'is_marked', default: false })
+  isMarked: boolean;
 
   @ManyToOne(() => Answers, (answers) => answers.studentAnswers, {
     onDelete: 'CASCADE',

@@ -17,6 +17,10 @@ import { EmailModule } from './modules/email/email.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { StudentModule } from './modules/student/student.module';
 import { RoleModule } from './modules/role/role.module';
+import { SubjectModule } from './modules/subject/subject.module';
+import { ClassesModule } from './modules/classes/classes.module';
+import { QuestionsModule } from './modules/questions/questions.module';
+import { AnswerModule } from './modules/answer/answer.module';
 
 const modules = [
   AuthModule,
@@ -25,6 +29,10 @@ const modules = [
   CloudinaryModule,
   StudentModule,
   RoleModule,
+  SubjectModule,
+  ClassesModule,
+  QuestionsModule,
+  AnswerModule,
 ];
 
 @Module({
