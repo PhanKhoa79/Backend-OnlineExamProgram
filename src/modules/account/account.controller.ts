@@ -244,11 +244,6 @@ export class AccountController {
       `account_template.${type}`,
     );
 
-    const logger = new Logger('TemplateDownload');
-
-    logger.log(`📝 Tên file: ${fileName}`);
-    logger.log(`📂 Đường dẫn file: ${filePath}`);
-
     if (!fs.existsSync(filePath)) {
       throw new NotFoundException('File mẫu không tồn tại!');
     }

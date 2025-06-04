@@ -9,8 +9,6 @@ export class SubjectMapper {
       name: entity.name,
       code: entity.code,
       description: entity.description,
-      createdAt: entity.createdAt,
-      updatedAt: entity.updatedAt,
     };
   }
 

@@ -1,98 +1,232 @@
+# 🎓 Hệ Thống Thi Trực Tuyến - Backend API
+
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <a href="http://nestjs.com/" target="blank">
+    <img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" />
+  </a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<div align="center">
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+![NestJS](https://img.shields.io/badge/nestjs-%23E0234E.svg?style=for-the-badge&logo=nestjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
 
-## Description
+</div>
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## 📖 Giới Thiệu Dự Án
 
+**Hệ Thống Thi Trực Tuyến** là một nền tảng backend mạnh mẽ được phát triển để hỗ trợ việc tổ chức các kỳ thi trực tuyến một cách hiệu quả và an toàn. Hệ thống cung cấp đầy đủ các chức năng quản lý thi cử từ việc tạo đề thi, quản lý học sinh, giám sát thi, đến chấm điểm và thống kê kết quả.
+
+### 🚀 Công Nghệ Sử Dụng
+
+<table>
+<tr>
+<td align="center">
+
+**Backend Framework** 🏗️
+- **NestJS** v11.0.1 - Framework Node.js tiên tiến
+- **TypeScript** - Ngôn ngữ lập trình type-safe
+- **Express** - Web framework nhanh chóng
+
+</td>
+<td align="center">
+
+**Database & ORM** 🗄️
+- **PostgreSQL** - Hệ quản trị cơ sở dữ liệu quan hệ
+- **TypeORM** v0.3.22 - Object-Relational Mapping
+- **Migrations** - Quản lý phiên bản database
+
+</td>
+</tr>
+<tr>
+<td align="center">
+
+**Authentication & Security** 🔐
+- **JWT** (JSON Web Tokens) - Xác thực người dùng
+- **Passport.js** - Middleware xác thực
+- **bcrypt** - Mã hóa mật khẩu
+- **Helmet** - Bảo mật HTTP headers
+
+</td>
+<td align="center">
+
+**Additional Features** ⚡
+- **Nodemailer** - Gửi email thông báo
+- **Multer** - Upload file/hình ảnh
+- **ExcelJS** - Xuất/nhập dữ liệu Excel
+- **Class Validator** - Validation dữ liệu
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🚀 Khởi Động Dự Án
+
+### 📋 Yêu Cầu Hệ Thống
+
+- **Node.js** >= 16.x
+- **PostgreSQL** >= 12.x
+- **PNPM** (Package Manager)
+
+### ⚙️ Cài Đặt
+
+1. **Clone dự án** 📥
 ```bash
-$ pnpm install
+git clone https://github.com/your-repo/backend-onlineexam-program.git
+cd backend-onlineexam-program
 ```
 
-## Compile and run the project
-
+2. **Cài đặt dependencies** 📦
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+pnpm install
 ```
 
-## Run tests
-
+3. **Cấu hình môi trường** 🔧
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+# Tạo file .env và cấu hình các biến môi trường
+cp .env.example .env
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
+4. **Setup Database** 🗄️
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+# Chạy migrations
+pnpm run migration:run
+
+# Seed dữ liệu mẫu
+pnpm run seed
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 🎯 Khởi Chạy Ứng Dụng
 
-## Resources
+```bash
+# Chế độ phát triển (Development)
+pnpm run start:dev
 
-Check out a few resources that may come in handy when working with NestJS:
+# Chế độ debug
+pnpm run start:debug
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Chế độ production
+pnpm run start:prod
+```
 
-## Support
+🌐 **Server sẽ chạy tại:** `http://localhost:5000`
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+---
 
-## Stay in touch
+## 🎯 Chức Năng Chính
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### 👥 **Quản Lý Người Dùng**
+- 🔐 **Xác thực & Phân quyền**: Đăng nhập/đăng xuất với JWT
+- 👤 **Profile Management**: Quản lý thông tin cá nhân
+- 🎭 **Role-based Access**: Phân quyền Giáo viên/Học sinh/Admin
+- 🖼️ **Avatar Upload**: Tải lên ảnh đại diện
 
-## License
+### 📚 **Quản Lý Học Tập**
+- 🏫 **Classes**: Quản lý lớp học và khóa học
+- 📖 **Subjects**: Quản lý môn học
+- 👨‍🎓 **Students**: Quản lý thông tin học sinh
+- 👩‍🏫 **Teachers**: Quản lý thông tin giáo viên
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### 📝 **Hệ Thống Thi Cử**
+- ❓ **Questions Management**: Tạo và quản lý ngân hàng câu hỏi
+- 📋 **Exam Creation**: Tạo đề thi với cấu hình linh hoạt
+- 📅 **Exam Scheduling**: Lập lịch thi và phân công
+- ✅ **Answer Processing**: Xử lý và lưu trữ bài làm
+- 🏆 **Result Management**: Chấm điểm và thống kê kết quả
+
+### 🛡️ **An Toàn & Giám Sát**
+- 🔍 **Anti-Cheat System**: Hệ thống chống gian lận
+- 📊 **Monitoring Logs**: Ghi log hoạt động thi cử
+- 🚫 **Token Blacklist**: Quản lý token bị vô hiệu hóa
+- ⏰ **Session Control**: Kiểm soát thời gian làm bài
+
+### 📧 **Thông Báo & Giao Tiếp**
+- ✉️ **Email Notifications**: Gửi thông báo qua email
+- 🔔 **In-app Notifications**: Thông báo trong ứng dụng
+- 📤 **Automated Alerts**: Cảnh báo tự động
+
+### 📊 **Báo Cáo & Thống Kê**
+- 📈 **Performance Analytics**: Phân tích hiệu suất học tập
+- 📋 **Excel Export/Import**: Xuất/nhập dữ liệu Excel
+- 🎯 **Custom Reports**: Báo cáo tùy chỉnh
+
+---
+
+## 🔧 Scripts Hữu Ích
+
+| Script | Mô tả | Icon |
+|--------|-------|------|
+| `pnpm run start:dev` | Khởi chạy server ở chế độ development | 🚀 |
+| `pnpm run build` | Build ứng dụng cho production | 🏗️ |
+| `pnpm run test` | Chạy unit tests | 🧪 |
+| `pnpm run test:e2e` | Chạy end-to-end tests | 🔄 |
+| `pnpm run lint` | Kiểm tra và sửa lỗi code style | ✨ |
+| `pnpm run migration:generate` | Tạo migration mới | 📝 |
+| `pnpm run migration:run` | Chạy migrations | ⚡ |
+| `pnpm run seed` | Seed dữ liệu mẫu | 🌱 |
+
+---
+
+## 📁 Cấu Trúc Dự Án
+
+```
+src/
+├── 📁 modules/           # Các module chức năng
+│   ├── 🔐 auth/         # Xác thực & phân quyền
+│   ├── 👤 account/      # Quản lý tài khoản
+│   ├── 📝 exam/         # Quản lý thi cử
+│   ├── ❓ questions/    # Ngân hàng câu hỏi
+│   ├── 👨‍🎓 student/     # Quản lý học sinh
+│   ├── 📚 subject/      # Quản lý môn học
+│   ├── 🏫 classes/      # Quản lý lớp học
+│   ├── ✅ answer/       # Xử lý bài làm
+│   ├── 📧 email/        # Gửi email
+│   └── ☁️ cloudinary/   # Upload file
+├── 🗄️ database/         # Cấu hình database
+│   ├── entities/        # Định nghĩa bảng
+│   ├── migrations/      # Database migrations
+│   └── seeders/         # Dữ liệu mẫu
+├── ⚙️ config/           # Cấu hình ứng dụng
+└── 🛠️ common/           # Utilities & helpers
+```
+
+---
+
+## 🤝 Đóng Góp
+
+Chúng tôi hoan nghênh mọi đóng góp từ cộng đồng! 
+
+1. 🍴 Fork dự án
+2. 🌿 Tạo branch mới (`git checkout -b feature/AmazingFeature`)
+3. 💻 Commit thay đổi (`git commit -m 'Add some AmazingFeature'`)
+4. 📤 Push lên branch (`git push origin feature/AmazingFeature`)
+5. 🔍 Mở Pull Request
+
+---
+
+## 📄 License
+
+Dự án này được phân phối dưới giấy phép **UNLICENSED**. Xem file `LICENSE` để biết thêm chi tiết.
+
+---
+
+## 📞 Liên Hệ & Hỗ Trợ
+
+- 📧 **Email**: phankhoa1379@gmail.com
+- 🌐 **Website**: https://www.facebook.com/phan.khoa.905202/
+
+---
+
+<div align="center">
+
+**🌟 Nếu dự án hữu ích, hãy cho chúng tôi một star! ⭐**
+
+*Made with ❤️ by Phan Khoa*
+
+</div>

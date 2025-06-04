@@ -10,6 +10,7 @@ import {
 import { ExamSchedule } from './ExamSchedule';
 import { Exams } from './Exams';
 import { Questions } from './Questions';
+import { Exclude } from 'class-transformer';
 
 @Index('subjects_code_key', ['code'], { unique: true })
 @Index('subjects_pkey', ['id'], { unique: true })

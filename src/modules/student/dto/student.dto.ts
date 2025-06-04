@@ -9,4 +9,6 @@ export class StudentDto {
   gender?: 'Nam' | 'Nữ' | 'Khác';
   classId: number;
   accountId?: number | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

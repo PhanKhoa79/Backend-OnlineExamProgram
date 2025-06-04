@@ -11,6 +11,11 @@ import { QuestionDto } from './dto/question.dto';
 import { Subjects } from 'src/database/entities/Subjects';
 import { DifficultyLevel } from 'src/database/entities/Questions';
 import { Answers } from 'src/database/entities/Answers';
+import * as ExcelJS from 'exceljs';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as csv from 'csv-parser';
+import { SubjectService } from '../subject/subject.service';
 
 @Injectable()
 export class QuestionsService {
@@ -20,6 +25,8 @@ export class QuestionsService {
 
     @InjectRepository(Subjects)
     private readonly subjectRepo: Repository<Subjects>,
+
+    private readonly subjectService: SubjectService,
   ) {}
 
   async create(dto: CreateQuestionDto): Promise<QuestionDto> {
@@ -95,13 +102,14 @@ export class QuestionsService {
         (a) => !incomingIds.includes(a.id),
       );
       if (toRemove.length > 0) {
-        await this.questionRepo.manager.remove(toRemove); // dùng manager để xoá liên kết
+        await this.questionRepo.manager.remove(toRemove);
       }
 
       question.answers = updatedAnswers;
+
+      question.updatedAt = new Date();
     }
 
-    // optional update subject
     if (dto.subjectId) {
       const subject = await this.subjectRepo.findOne({
         where: { id: dto.subjectId },
@@ -114,13 +122,12 @@ export class QuestionsService {
     return QuestionMapper.toDto(updated);
   }
 
-
   async delete(id: number): Promise<void> {
     const question = await this.questionRepo.findOneBy({ id });
     if (!question) throw new NotFoundException('Question not found');
     await this.questionRepo.remove(question);
   }
-  
+
   async updateMany(
     updateDtos: { id: number; data: UpdateQuestionDto }[],
   ): Promise<QuestionDto[]> {
@@ -171,8 +178,9 @@ export class QuestionsService {
           }
         }
 
-        // Gán lại toàn bộ (bao gồm các answer cũ + answer được update + answer mới)
         question.answers = existingAnswers;
+
+        question.updatedAt = new Date();
       }
 
       const updated = await this.questionRepo.save(question);
@@ -208,7 +216,10 @@ export class QuestionsService {
   async findAll(): Promise<QuestionDto[]> {
     const list = await this.questionRepo.find({
       relations: ['answers', 'subject'],
-      order: { createdAt: 'DESC' },
+      order: {
+        updatedAt: 'DESC',
+        createdAt: 'DESC',
+      },
     });
     return list.map((q) => QuestionMapper.toDto(q));
   }
@@ -227,5 +238,260 @@ export class QuestionsService {
       relations: ['answers', 'subject'],
     });
     return list.map((q) => QuestionMapper.toDto(q));
+  }
+
+  async importQuestionsFromFile(filePath: string, type: 'xlsx' | 'csv') {
+    const questions: CreateQuestionDto[] = [];
+
+    if (type === 'xlsx') {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(filePath);
+      const worksheet = workbook.getWorksheet(1);
+
+      if (!worksheet) {
+        throw new Error('Không tìm thấy worksheet!');
+      }
+
+      const questionRows: { rowNumber: number; values: unknown[] }[] = [];
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+
+        const values = row.values as unknown[];
+        questionRows.push({
+          rowNumber,
+          values: values.slice(1),
+        });
+      });
+
+      let currentQuestion: Partial<CreateQuestionDto> | null = null;
+      const answers: { answerText: string; isCorrect: boolean }[] = [];
+
+      for (const rowData of questionRows) {
+        const [
+          questionText,
+          imageUrl,
+          audioUrl,
+          passageText,
+          difficultyLevel,
+          subjectId,
+          answerText,
+          isCorrect,
+        ] = rowData.values;
+
+        if (
+          questionText &&
+          typeof questionText === 'string' &&
+          questionText.trim()
+        ) {
+          if (currentQuestion && answers.length > 0) {
+            questions.push({
+              ...currentQuestion,
+              answers: [...answers] as CreateQuestionDto['answers'],
+            } as CreateQuestionDto);
+            answers.length = 0;
+          }
+
+          currentQuestion = {
+            questionText: String(questionText),
+            imageUrl:
+              imageUrl && typeof imageUrl === 'string' ? imageUrl : undefined,
+            audioUrl:
+              audioUrl && typeof audioUrl === 'string' ? audioUrl : undefined,
+            passageText:
+              passageText && typeof passageText === 'string'
+                ? passageText
+                : undefined,
+            difficultyLevel:
+              difficultyLevel && typeof difficultyLevel === 'string'
+                ? (difficultyLevel as DifficultyLevel)
+                : undefined,
+            subjectId: Number(subjectId),
+          };
+        }
+
+        if (answerText && typeof answerText === 'string' && answerText.trim()) {
+          answers.push({
+            answerText: String(answerText),
+            isCorrect: Boolean(
+              isCorrect === true || isCorrect === 'true' || isCorrect === 1,
+            ),
+          });
+        }
+      }
+
+      if (currentQuestion && answers.length > 0) {
+        questions.push({
+          ...currentQuestion,
+          answers: [...answers] as CreateQuestionDto['answers'],
+        } as CreateQuestionDto);
+      }
+    } else if (type === 'csv') {
+      await new Promise<void>((resolve, reject) => {
+        const questionRows: Record<string, string>[] = [];
+
+        fs.createReadStream(filePath)
+          .pipe(csv({ separator: ',' }))
+          .on('data', (data: Record<string, string>) => {
+            questionRows.push(data);
+          })
+          .on('end', () => {
+            let currentQuestion: Partial<CreateQuestionDto> | null = null;
+            const answers: { answerText: string; isCorrect: boolean }[] = [];
+
+            for (const data of questionRows) {
+              const {
+                questionText,
+                imageUrl,
+                audioUrl,
+                passageText,
+                difficultyLevel,
+                subjectId,
+                answerText,
+                isCorrect,
+              } = data;
+
+              if (questionText && questionText.trim()) {
+                if (currentQuestion && answers.length > 0) {
+                  questions.push({
+                    ...currentQuestion,
+                    answers: [...answers] as CreateQuestionDto['answers'],
+                  } as CreateQuestionDto);
+                  answers.length = 0;
+                }
+
+                currentQuestion = {
+                  questionText: questionText,
+                  imageUrl: imageUrl || undefined,
+                  audioUrl: audioUrl || undefined,
+                  passageText: passageText || undefined,
+                  difficultyLevel: difficultyLevel
+                    ? (difficultyLevel as DifficultyLevel)
+                    : undefined,
+                  subjectId: Number(subjectId),
+                };
+              }
+
+              if (answerText && answerText.trim()) {
+                answers.push({
+                  answerText: answerText,
+                  isCorrect: isCorrect === 'true' || isCorrect === '1',
+                });
+              }
+            }
+
+            if (currentQuestion && answers.length > 0) {
+              questions.push({
+                ...currentQuestion,
+                answers: [...answers] as CreateQuestionDto['answers'],
+              } as CreateQuestionDto);
+            }
+
+            resolve();
+          })
+          .on('error', reject);
+      });
+    } else {
+      throw new Error('Loại file không hỗ trợ!');
+    }
+
+    const result = await this.createMany(questions);
+    fs.unlinkSync(filePath);
+    return result;
+  }
+
+  async exportQuestions(
+    questions: QuestionDto[],
+    res: Response,
+    format: 'excel' | 'csv' = 'excel',
+  ) {
+    const bom = '\uFEFF';
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Questions');
+
+    worksheet.columns = [
+      { header: 'Question Text', key: 'questionText', width: 50 },
+      { header: 'Image URL', key: 'imageUrl', width: 30 },
+      { header: 'Audio URL', key: 'audioUrl', width: 30 },
+      { header: 'Passage Text', key: 'passageText', width: 40 },
+      { header: 'Difficulty Level', key: 'difficultyLevel', width: 15 },
+      { header: 'Subject Name', key: 'subjectName', width: 20 },
+      { header: 'Answer Text', key: 'answerText', width: 40 },
+      { header: 'Is Correct', key: 'isCorrect', width: 12 },
+    ];
+
+    const subjectMap = new Map<number, string>();
+    for (const question of questions) {
+      if (question.subjectId && !subjectMap.has(question.subjectId)) {
+        try {
+          const subject = await this.subjectService.findById(
+            question.subjectId,
+          );
+          subjectMap.set(question.subjectId, subject.name);
+        } catch {
+          subjectMap.set(
+            question.subjectId,
+            `Subject ID: ${question.subjectId}`,
+          );
+        }
+      }
+    }
+
+    questions.forEach((question) => {
+      const subjectName = question.subjectId
+        ? subjectMap.get(question.subjectId) ||
+          `Subject ID: ${question.subjectId}`
+        : '';
+
+      if (question.answers && question.answers.length > 0) {
+        question.answers.forEach((answer, index) => {
+          worksheet.addRow({
+            questionText: index === 0 ? question.questionText : '',
+            imageUrl: index === 0 ? question.imageUrl || '' : '',
+            audioUrl: index === 0 ? question.audioUrl || '' : '',
+            passageText: index === 0 ? question.passageText || '' : '',
+            difficultyLevel: index === 0 ? question.difficultyLevel || '' : '',
+            subjectName: index === 0 ? subjectName : '',
+            answerText: answer.answerText,
+            isCorrect: answer.isCorrect ? 'TRUE' : 'FALSE',
+          });
+        });
+      } else {
+        // Question without answers
+        worksheet.addRow({
+          questionText: question.questionText,
+          imageUrl: question.imageUrl || '',
+          audioUrl: question.audioUrl || '',
+          passageText: question.passageText || '',
+          difficultyLevel: question.difficultyLevel || '',
+          subjectName: subjectName,
+          answerText: '',
+          isCorrect: '',
+        });
+      }
+    });
+
+    if (format === 'excel') {
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="questions.xlsx"',
+      );
+      await workbook.xlsx.write(res);
+      res.end();
+    } else if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="questions.csv"',
+      );
+      const buffer = await workbook.csv.writeBuffer();
+      res.write(bom);
+      res.write(buffer);
+      res.end();
+    }
   }
 }

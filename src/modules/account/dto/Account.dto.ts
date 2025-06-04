@@ -5,4 +5,6 @@ export class AccountDto {
   role: string;
   isActive: boolean;
   urlAvatar: string | null;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

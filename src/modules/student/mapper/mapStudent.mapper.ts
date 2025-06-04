@@ -14,6 +14,8 @@ export class StudentMapper {
       address: entity.address ?? null,
       classId: entity.class?.id,
       accountId: entity.account?.id,
+      createdAt: entity.createdAt ?? undefined,
+      updatedAt: entity.updatedAt ?? undefined,
     };
   }
 

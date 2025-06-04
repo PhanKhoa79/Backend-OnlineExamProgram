@@ -21,6 +21,7 @@ import { SubjectModule } from './modules/subject/subject.module';
 import { ClassesModule } from './modules/classes/classes.module';
 import { QuestionsModule } from './modules/questions/questions.module';
 import { AnswerModule } from './modules/answer/answer.module';
+import { ExamModule } from './modules/exam/exam.module';
 
 const modules = [
   AuthModule,
@@ -33,6 +34,7 @@ const modules = [
   ClassesModule,
   QuestionsModule,
   AnswerModule,
+  ExamModule,
 ];
 
 @Module({

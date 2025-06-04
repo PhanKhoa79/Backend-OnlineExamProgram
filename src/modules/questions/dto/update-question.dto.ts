@@ -1,7 +1,6 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { DifficultyLevel } from 'src/database/entities/Questions';
 
-
 export class UpdateQuestionDto {
   @IsOptional()
   @IsString()
@@ -26,7 +25,7 @@ export class UpdateQuestionDto {
 
   @IsOptional()
   answers?: {
-    id?: number; // for update existing answer
+    id?: number; 
     answerText: string;
     isCorrect: boolean;
   }[];

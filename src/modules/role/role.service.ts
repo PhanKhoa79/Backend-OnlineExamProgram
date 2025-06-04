@@ -48,8 +48,11 @@ export class RoleService {
     );
 
     const result: RoleWithPermissionsDto = {
+      id: role.id,
       name: role.name,
       permissions: permissions,
+      createdAt: role.createdAt ?? undefined,
+      updatedAt: role.updatedAt ?? undefined,
     };
 
     return result;
@@ -58,13 +61,19 @@ export class RoleService {
   async getAllRolesWithPermissions() {
     const roles = await this.roleRepository.find({
       relations: ['rolePermissions', 'rolePermissions.permission'],
+      order: {
+        updatedAt: 'DESC',
+        createdAt: 'DESC',
+      },
     });
-
     const result = roles.map((role) => ({
+      id: role.id,
       name: role.name,
       permissions: role.rolePermissions.map(
         (rp) => `${rp.permission.resource}:${rp.permission.action}`,
       ),
+      createdAt: role.createdAt ?? undefined,
+      updatedAt: role.updatedAt ?? undefined,
     }));
 
     return result;
@@ -126,10 +135,13 @@ export class RoleService {
 
     // Format dữ liệu trả về đúng RoleWithPermissionsDto
     const result: RoleWithPermissionsDto = {
+      id: newRole.id,
       name: newRole.name,
       permissions: permissionEntities.map(
         (perm) => `${perm.resource}:${perm.action}`,
       ),
+      createdAt: newRole.createdAt ?? undefined,
+      updatedAt: newRole.updatedAt ?? undefined,
     };
 
     return result;
@@ -170,12 +182,18 @@ export class RoleService {
     );
     await this.rolePermissionRepository.save(rolePermissions);
 
+    role.updatedAt = new Date();
+    await this.roleRepository.save(role);
+
     // Format dữ liệu trả về
     const result: RoleWithPermissionsDto = {
+      id: role.id,
       name: role.name,
       permissions: permissionEntities.map(
         (perm) => `${perm.resource}:${perm.action}`,
       ),
+      createdAt: role.createdAt ?? undefined,
+      updatedAt: role.updatedAt ?? undefined,
     };
 
     return result;
@@ -189,6 +207,10 @@ export class RoleService {
     if (!role) {
       throw new Error(`Role with id ${roleId} not found.`);
     }
+
+    // Save role trước khi xóa để cập nhật updatedAt
+    await this.roleRepository.save(role);
+
     await this.rolePermissionRepository.delete({ roleId });
     await this.roleRepository.delete(roleId);
   }

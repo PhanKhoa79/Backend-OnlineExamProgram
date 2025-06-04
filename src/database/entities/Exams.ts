@@ -13,6 +13,7 @@ import { Questions } from './Questions';
 import { ExamScheduleAssignments } from './ExamScheduleAssignments';
 import { Subjects } from './Subjects';
 import { StudentExams } from './StudentExams';
+import { Exclude } from 'class-transformer';
 
 @Index('exams_pkey', ['id'], { unique: true })
 @Entity('exams', { schema: 'public' })
@@ -40,12 +41,21 @@ export class Exams {
   @Column('integer', { name: 'total_questions', nullable: true })
   totalQuestions: number | null;
 
+  @Exclude()
   @Column('timestamp without time zone', {
     name: 'created_at',
     nullable: true,
     default: () => 'now()',
   })
   createdAt: Date | null;
+
+  @Exclude()
+  @Column('timestamp without time zone', {
+    name: 'updated_at',
+    nullable: true,
+    default: () => 'now()',
+  })
+  updatedAt: Date | null;
 
   @ManyToMany(() => Questions, (questions) => questions.exams)
   @JoinTable({

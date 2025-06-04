@@ -8,6 +8,7 @@ import { Subjects } from 'src/database/entities/Subjects';
 import { Repository } from 'typeorm';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
 import { CreateSubjectDto } from './dto/create-subject.dto';
+import { SubjectResponseDto } from './dto/subject.dto';
 
 @Injectable()
 export class SubjectService {
@@ -48,6 +49,14 @@ export class SubjectService {
     const subject = await this.subjectRepo.findOne({ where: { code } });
     if (!subject) {
       throw new NotFoundException(`Không tìm thấy môn học với mã: ${code}`);
+    }
+    return subject;
+  }
+
+  async findById(id: number): Promise<SubjectResponseDto> {
+    const subject = await this.subjectRepo.findOne({ where: { id } });
+    if (!subject) {
+      throw new NotFoundException(`Không tìm thấy môn học với ID: ${id}`);
     }
     return subject;
   }

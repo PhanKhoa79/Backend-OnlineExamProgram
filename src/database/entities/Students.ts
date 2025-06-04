@@ -6,6 +6,8 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { StudentExams } from './StudentExams';
 import { Accounts } from './Accounts';
@@ -53,18 +55,10 @@ export class Students {
   @Column('text', { name: 'address', nullable: true })
   address: string | null;
 
-  @Column('timestamp without time zone', {
-    name: 'created_at',
-    nullable: true,
-    default: () => 'now()',
-  })
-  createdAt: Date | null;
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
 
-  @Column('timestamp without time zone', {
-    name: 'updated_at',
-    nullable: true,
-    default: () => 'now()',
-  })
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date | null;
 
   @OneToMany(() => StudentExams, (studentExams) => studentExams.student)

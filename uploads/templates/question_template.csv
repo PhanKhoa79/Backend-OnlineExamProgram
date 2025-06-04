@@ -1,0 +1,12 @@
+﻿Question Text,Image URL,Audio URL,Passage Text,Difficulty Level,Subject ID,Answer Text,Is Correct
+"Mẫu: Thủ đô của Việt Nam là gì?",,,,dễ,1,"Hà Nội",TRUE
+,,,,,,,"Hồ Chí Minh",FALSE
+,,,,,,,"Đà Nẵng",FALSE
+,,,,,,,"Cần Thơ",FALSE
+"Mẫu: Câu hỏi có hình ảnh",https://example.com/image.jpg,,,"trung bình",2,"Đáp án đúng",TRUE
+,,,,,,,"Đáp án sai 1",FALSE
+,,,,,,,"Đáp án sai 2",FALSE
+"Mẫu: Câu hỏi có audio",,https://example.com/audio.mp3,,dễ,3,"Âm thanh đúng",TRUE
+,,,,,,,"Âm thanh sai",FALSE
+"Mẫu: Câu hỏi reading",,,"Đây là đoạn văn mẫu cho câu hỏi đọc hiểu. Học sinh cần đọc và trả lời câu hỏi dựa trên nội dung này.",khó,4,"Đáp án từ đoạn văn",TRUE
+,,,,,,,"Đáp án không liên quan",FALSE

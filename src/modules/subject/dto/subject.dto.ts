@@ -3,6 +3,6 @@ export class SubjectResponseDto {
   name: string;
   code: string;
   description?: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }

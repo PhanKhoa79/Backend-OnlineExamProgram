@@ -61,6 +61,15 @@ export class SubjectController {
     return SubjectMapper.toResponseDto(subject);
   }
 
+  @Get('id/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('subject:view')
+  async findById(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<SubjectResponseDto> {
+    return await this.subjectService.findById(id);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:view')
