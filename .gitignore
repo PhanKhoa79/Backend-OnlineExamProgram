@@ -3,7 +3,6 @@
 /node_modules
 /build
 /backup_package_managers
-/.cursor
 
 # Logs
 logs

@@ -18,6 +18,7 @@ import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
+import { RedisCacheService } from 'src/common/cache/redis-cache.service';
 
 @Injectable()
 export class StudentService {
@@ -26,6 +27,7 @@ export class StudentService {
 
     @InjectRepository(Classes)
     private readonly classRepo: Repository<Classes>,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async create(dto: CreateStudentDto): Promise<Students> {
@@ -252,19 +254,42 @@ export class StudentService {
   }
 
   async findById(id: number): Promise<Students> {
-    const student = await this.studentRepository.findOne({
-      where: { id },
-      relations: ['class'],
-    });
-    if (!student) throw new NotFoundException('Không tìm thấy sinh viên');
-    return student;
+    const cacheKey = this.cacheService.generateKey(
+      RedisCacheService.KEYS.STUDENT,
+      'id',
+      id,
+    );
+
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const student = await this.studentRepository.findOne({
+          where: { id },
+          relations: ['class'],
+        });
+        if (!student) throw new NotFoundException('Không tìm thấy sinh viên');
+        return student;
+      },
+      { ttl: RedisCacheService.TTL.MEDIUM },
+    );
   }
 
   async findAll(): Promise<Students[]> {
-    return this.studentRepository.find({
-      relations: ['class'],
-      order: { createdAt: 'DESC' },
-    });
+    const cacheKey = this.cacheService.generateKey(
+      RedisCacheService.KEYS.STUDENT,
+      'list',
+    );
+
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        return this.studentRepository.find({
+          relations: ['class'],
+          order: { createdAt: 'DESC' },
+        });
+      },
+      { ttl: RedisCacheService.TTL.SHORT },
+    );
   }
 
   async delete(id: number): Promise<void> {

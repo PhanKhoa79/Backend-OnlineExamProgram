@@ -130,7 +130,7 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
     @Req() req: Request, // hoặc @GetUser() user
   ) {
-    const accountId = (req as any).user?.userId; 
+    const accountId = (req as any).user?.userId;
     if (!accountId) throw new UnauthorizedException();
 
     return this.authService.changePassword(accountId, dto);

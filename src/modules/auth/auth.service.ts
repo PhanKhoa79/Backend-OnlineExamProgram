@@ -300,7 +300,7 @@ export class AuthService {
       order: { loginTime: 'DESC' },
     });
 
-    return histories.map(h => ({
+    return histories.map((h) => ({
       accountId: h.account.id,
       loginTime: h.loginTime,
       ipAddress: h.ipAddress,

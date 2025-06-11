@@ -1,7 +1,6 @@
 import { Subjects } from 'src/database/entities/Subjects';
 import { SubjectResponseDto } from '../dto/subject.dto';
 
-
 export class SubjectMapper {
   static toResponseDto(entity: Subjects): SubjectResponseDto {
     return {

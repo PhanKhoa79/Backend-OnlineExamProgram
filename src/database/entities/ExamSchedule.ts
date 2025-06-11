@@ -32,10 +32,10 @@ export class ExamSchedule {
 
   @Column('enum', {
     name: 'status',
-    enum: ['scheduled', 'done', 'cancelled'],
-    default: 'scheduled',
+    enum: ['active', 'completed', 'cancelled'],
+    default: 'active',
   })
-  status: 'scheduled' | 'done' | 'cancelled';
+  status: 'active' | 'completed' | 'cancelled';
 
   @Column('text', { name: 'description', nullable: true })
   description: string | null;

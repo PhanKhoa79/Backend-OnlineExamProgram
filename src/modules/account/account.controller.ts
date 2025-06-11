@@ -17,7 +17,6 @@ import {
   UploadedFile,
   UseInterceptors,
   NotFoundException,
-  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -35,8 +34,11 @@ import { Response } from 'express';
 import { join } from 'path';
 import * as fs from 'fs';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
+import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
 @Controller('account')
+@UseInterceptors(CacheInterceptor)
 export class AccountController {
   constructor(
     private readonly accountService: AccountService,
@@ -44,8 +46,8 @@ export class AccountController {
   ) {}
 
   @Get('all')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('account:view')
+  @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'account:list', ttl: 120 })
   async getAllAccounts(): Promise<AccountDto[]> {
     return await this.accountService.getAllAccounts();
   }
@@ -58,6 +60,7 @@ export class AccountController {
 
   @Get('info/:id')
   @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'account:info:{id}', ttl: 300 })
   async getAccountInfoById(@Param('id') id: string) {
     const numericId = Number(id);
 
@@ -70,6 +73,7 @@ export class AccountController {
   @Post('/add/user')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
+  @CacheEvict(['account:*'])
   async addAccount(@Body() body: CreateAccountDto) {
     try {
       const result = await this.accountService.addAccount(body);
@@ -82,6 +86,7 @@ export class AccountController {
   @Post('/add/users')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
+  @CacheEvict(['account:*'])
   async addAccountStudents(@Body() body: CreateAccountDto[]) {
     try {
       const result = await this.accountService.addAccountsForStudents(body);
@@ -100,6 +105,7 @@ export class AccountController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:update')
+  @CacheEvict(['account:*'])
   async updateAccount(@Param('id') id: number, @Body() body: UpdateAccountDto) {
     try {
       const result = await this.accountService.updateAccount(Number(id), body);
@@ -115,6 +121,7 @@ export class AccountController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:delete')
+  @CacheEvict(['account:*'])
   async deleteAccount(@Param('id') id: number) {
     try {
       await this.accountService.deleteAccountById(Number(id));
@@ -130,6 +137,7 @@ export class AccountController {
   @Post('delete-many')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:delete')
+  @CacheEvict(['account:*'])
   async deleteManyAccounts(@Body() body: DeleteAccountsDto) {
     try {
       await this.accountService.deleteAccountsByIds(body.ids);

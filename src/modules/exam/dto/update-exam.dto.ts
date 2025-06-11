@@ -13,16 +13,16 @@ export class UpdateExamDto {
   @IsString()
   @IsOptional()
   name: string;
-  
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
   duration: number;
-  
+
   @IsEnum(['practice', 'official'])
   @IsOptional()
   examType: 'practice' | 'official';
-  
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)

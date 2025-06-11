@@ -13,6 +13,7 @@ import { Notifications } from './Notifications';
 import { Students } from './Students';
 import { Role } from './Role';
 import { LoginHistory } from './LoginHistory';
+import { StudentExamSessions } from './StudentExamSessions';
 
 @Index('accounts_accountname_key', ['accountname'], { unique: true })
 @Index('accounts_email_key', ['email'], { unique: true })
@@ -92,4 +93,7 @@ export class Accounts {
 
   @OneToMany(() => LoginHistory, (loginHistory) => loginHistory.account)
   loginHistories: LoginHistory[];
+
+  @OneToMany(() => StudentExamSessions, (session) => session.student)
+  studentExamSessions: StudentExamSessions[];
 }

@@ -29,6 +29,7 @@
 <td align="center">
 
 **Backend Framework** 🏗️
+
 - **NestJS** v11.0.1 - Framework Node.js tiên tiến
 - **TypeScript** - Ngôn ngữ lập trình type-safe
 - **Express** - Web framework nhanh chóng
@@ -38,6 +39,7 @@
 <td align="center">
 
 **Database & ORM** 🗄️
+
 - **PostgreSQL** - Hệ quản trị cơ sở dữ liệu quan hệ
 - **TypeORM** v0.3.22 - Object-Relational Mapping
 - **Migrations** - Quản lý phiên bản database
@@ -48,6 +50,7 @@
 <td align="center">
 
 **Authentication & Security** 🔐
+
 - **JWT** (JSON Web Tokens) - Xác thực người dùng
 - **Passport.js** - Middleware xác thực
 - **bcrypt** - Mã hóa mật khẩu
@@ -57,6 +60,7 @@
 <td align="center">
 
 **Additional Features** ⚡
+
 - **Nodemailer** - Gửi email thông báo
 - **Multer** - Upload file/hình ảnh
 - **ExcelJS** - Xuất/nhập dữ liệu Excel
@@ -79,12 +83,14 @@
 ### ⚙️ Cài Đặt
 
 1. **Clone dự án** 📥
+
 ```bash
 git clone https://github.com/your-repo/backend-onlineexam-program.git
 cd backend-onlineexam-program
 ```
 
 2. **Cài đặt Bun** 🏃‍♂️
+
 ```bash
 # Windows
 powershell -c "irm bun.sh/install.ps1 | iex"
@@ -94,17 +100,20 @@ curl -fsSL https://bun.sh/install | bash
 ```
 
 3. **Cài đặt dependencies** 📦
+
 ```bash
 bun install
 ```
 
 4. **Cấu hình môi trường** 🔧
+
 ```bash
 # Tạo file .env và cấu hình các biến môi trường
 cp .env.example .env
 ```
 
 5. **Setup Database** 🗄️
+
 ```bash
 # Chạy migrations
 bun run migration:run
@@ -133,18 +142,21 @@ bun run start:prod
 ## 🎯 Chức Năng Chính
 
 ### 👥 **Quản Lý Người Dùng**
+
 - 🔐 **Xác thực & Phân quyền**: Đăng nhập/đăng xuất với JWT
 - 👤 **Profile Management**: Quản lý thông tin cá nhân
 - 🎭 **Role-based Access**: Phân quyền Giáo viên/Học sinh/Admin
 - 🖼️ **Avatar Upload**: Tải lên ảnh đại diện
 
 ### 📚 **Quản Lý Học Tập**
+
 - 🏫 **Classes**: Quản lý lớp học và khóa học
 - 📖 **Subjects**: Quản lý môn học
 - 👨‍🎓 **Students**: Quản lý thông tin học sinh
 - 👩‍🏫 **Teachers**: Quản lý thông tin giáo viên
 
 ### 📝 **Hệ Thống Thi Cử**
+
 - ❓ **Questions Management**: Tạo và quản lý ngân hàng câu hỏi
 - 📋 **Exam Creation**: Tạo đề thi với cấu hình linh hoạt
 - 📅 **Exam Scheduling**: Lập lịch thi và phân công
@@ -152,17 +164,20 @@ bun run start:prod
 - 🏆 **Result Management**: Chấm điểm và thống kê kết quả
 
 ### 🛡️ **An Toàn & Giám Sát**
+
 - 🔍 **Anti-Cheat System**: Hệ thống chống gian lận
 - 📊 **Monitoring Logs**: Ghi log hoạt động thi cử
 - 🚫 **Token Blacklist**: Quản lý token bị vô hiệu hóa
 - ⏰ **Session Control**: Kiểm soát thời gian làm bài
 
 ### 📧 **Thông Báo & Giao Tiếp**
+
 - ✉️ **Email Notifications**: Gửi thông báo qua email
 - 🔔 **In-app Notifications**: Thông báo trong ứng dụng
 - 📤 **Automated Alerts**: Cảnh báo tự động
 
 ### 📊 **Báo Cáo & Thống Kê**
+
 - 📈 **Performance Analytics**: Phân tích hiệu suất học tập
 - 📋 **Excel Export/Import**: Xuất/nhập dữ liệu Excel
 - 🎯 **Custom Reports**: Báo cáo tùy chỉnh
@@ -171,18 +186,19 @@ bun run start:prod
 
 ## 🔧 Scripts Hữu Ích
 
-| Script | Mô tả | Icon | Performance |
-|--------|-------|------|-------------|
-| `bun run start:dev` | Khởi chạy server ở chế độ development | 🚀 | ⚡ 4x faster |
-| `bun run build` | Build ứng dụng cho production | 🏗️ | ⚡ 3x faster |
-| `bun run test` | Chạy unit tests | 🧪 | ⚡ 2x faster |
-| `bun run test:e2e` | Chạy end-to-end tests | 🔄 | ⚡ 2x faster |
-| `bun run lint` | Kiểm tra và sửa lỗi code style | ✨ | ⚡ Fast |
-| `bun run migration:generate` | Tạo migration mới | 📝 | ⚡ Fast |
-| `bun run migration:run` | Chạy migrations | ⚡ | ⚡ Fast |
-| `bun run seed` | Seed dữ liệu mẫu | 🌱 | ⚡ Fast |
+| Script                       | Mô tả                                 | Icon | Performance  |
+| ---------------------------- | ------------------------------------- | ---- | ------------ |
+| `bun run start:dev`          | Khởi chạy server ở chế độ development | 🚀   | ⚡ 4x faster |
+| `bun run build`              | Build ứng dụng cho production         | 🏗️   | ⚡ 3x faster |
+| `bun run test`               | Chạy unit tests                       | 🧪   | ⚡ 2x faster |
+| `bun run test:e2e`           | Chạy end-to-end tests                 | 🔄   | ⚡ 2x faster |
+| `bun run lint`               | Kiểm tra và sửa lỗi code style        | ✨   | ⚡ Fast      |
+| `bun run migration:generate` | Tạo migration mới                     | 📝   | ⚡ Fast      |
+| `bun run migration:run`      | Chạy migrations                       | ⚡   | ⚡ Fast      |
+| `bun run seed`               | Seed dữ liệu mẫu                      | 🌱   | ⚡ Fast      |
 
 ### 🚀 **Bun Performance Benefits**
+
 - **Install Speed**: 10-25x nhanh hơn npm/pnpm
 - **Script Execution**: 4x nhanh hơn Node.js
 - **Memory Usage**: Thấp hơn 40-60%
@@ -191,5 +207,7 @@ bun run start:prod
 ---
 
 ## 📁 Cấu Trúc Dự Án
+
+```
 
 ```

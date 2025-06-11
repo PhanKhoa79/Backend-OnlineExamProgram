@@ -27,6 +27,6 @@ export class BulkCreateResult {
     dateOfBirth: string;
     phoneNumber: string;
     classId: number;
-    gender: 'Nam' | 'Nữ' | 'Khác'
+    gender: 'Nam' | 'Nữ' | 'Khác';
   }>;
-} 
+}

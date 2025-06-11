@@ -10,6 +10,7 @@ import {
   HttpStatus,
   Delete,
   Put,
+  UseInterceptors,
 } from '@nestjs/common';
 import { RoleService } from './role.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -17,13 +18,17 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
 import { CreateRoleDto } from './dto/createRole.dto';
 import { RoleWithPermissionsDto } from './dto/roleWithPermission.dto';
+import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
+import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
 @Controller('role')
+@UseInterceptors(CacheInterceptor)
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'role:list:all', ttl: 1800 })
   async getAllRolesWithPermissions() {
     const data = await this.roleService.getAllRolesWithPermissions();
     return data;
@@ -31,6 +36,7 @@ export class RoleController {
 
   @Get(':id/permissions')
   @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'role:permissions:{id}', ttl: 1800 })
   async getPermissionsByRoleId(
     @Param('id', ParseIntPipe) roleId: number,
   ): Promise<RoleWithPermissionsDto | null> {
@@ -39,6 +45,7 @@ export class RoleController {
 
   @Get('name/:name')
   @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'role:name:{name}', ttl: 1800 })
   async getRoleByName(@Param('name') name: string) {
     const role = await this.roleService.findByName(name);
     if (!role) {
@@ -49,6 +56,7 @@ export class RoleController {
 
   @Get('permissions/all')
   @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'role:permissions:all', ttl: 3600 })
   async getAllPermissions() {
     const permissions = await this.roleService.getAllPermissions();
     return { permissions };
@@ -57,6 +65,7 @@ export class RoleController {
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('role:create')
+  @CacheEvict(['role:*'])
   async createRole(
     @Body() createRoleDto: CreateRoleDto,
   ): Promise<RoleWithPermissionsDto> {
@@ -64,7 +73,7 @@ export class RoleController {
       const newRole =
         await this.roleService.createRoleWithPermissions(createRoleDto);
       return newRole;
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
@@ -72,6 +81,7 @@ export class RoleController {
   @Put(':id/permissions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('role:update')
+  @CacheEvict(['role:*'])
   async updatePermissions(
     @Param('id', ParseIntPipe) roleId: number,
     @Body('permissions') permissions: string[],
@@ -86,11 +96,12 @@ export class RoleController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('role:delete')
+  @CacheEvict(['role:*'])
   async deleteRole(@Param('id', ParseIntPipe) id: number) {
     try {
       await this.roleService.deleteRoleById(id);
       return { message: `Role with id ${id} deleted successfully.` };
-    } catch (error) {
+    } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }

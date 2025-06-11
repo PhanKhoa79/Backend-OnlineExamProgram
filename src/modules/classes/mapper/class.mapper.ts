@@ -1,7 +1,6 @@
 import { Classes } from 'src/database/entities/Classes';
 import { ClassResponseDto } from '../dto/classes.dto';
 
-
 export class ClassMapper {
   static toResponseDto(entity: Classes): ClassResponseDto {
     return {

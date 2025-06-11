@@ -58,6 +58,7 @@ export class AccountService {
     };
 
     if (!toSave.isActive) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
       toSave.activationToken = uuidv4();
       toSave.activationTokenExpiresAt = calculateExpiryDate('24h');
     }

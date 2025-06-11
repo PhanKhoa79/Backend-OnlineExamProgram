@@ -25,7 +25,7 @@ export class UpdateQuestionDto {
 
   @IsOptional()
   answers?: {
-    id?: number; 
+    id?: number;
     answerText: string;
     isCorrect: boolean;
   }[];

@@ -33,14 +33,18 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Response } from 'express';
 import * as fs from 'fs';
+import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
+import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
 @Controller('student')
+@UseInterceptors(CacheInterceptor)
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('student:create')
+  @CacheEvict(['student:*'])
   async create(@Body() dto: CreateStudentDto): Promise<StudentDto> {
     const entity = await this.studentService.create(dto);
     return StudentMapper.toResponseDto(entity);
@@ -109,8 +113,8 @@ export class StudentController {
   }
 
   @Get('class/:classId')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('student:view')
+  @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'student:class:{classId}', ttl: 300 })
   async findByClassId(
     @Param('classId', ParseIntPipe) classId: number,
   ): Promise<StudentDto[]> {
@@ -118,16 +122,16 @@ export class StudentController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('student:view')
+  @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'student:id:{id}', ttl: 600 })
   async findById(@Param('id', ParseIntPipe) id: number): Promise<StudentDto> {
     const entity = await this.studentService.findById(id);
     return StudentMapper.toResponseDto(entity);
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('student:view')
+  @UseGuards(JwtAuthGuard)
+  @Cache({ key: 'student:list', ttl: 300 })
   async findAll(): Promise<StudentDto[]> {
     const list = await this.studentService.findAll();
     return StudentMapper.toResponseList(list);
@@ -136,6 +140,7 @@ export class StudentController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('student:update')
+  @CacheEvict(['student:*'])
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateStudentDto,
@@ -147,6 +152,7 @@ export class StudentController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('student:delete')
+  @CacheEvict(['student:*'])
   async delete(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {

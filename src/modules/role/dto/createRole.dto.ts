@@ -16,6 +16,9 @@ export class CreateRoleDto {
   @ArrayNotEmpty()
   @ArrayMinSize(1)
   // eslint-disable-next-line prettier/prettier
-  @Matches(/^[a-zA-Z]+:[a-zA-Z]+$/, { each: true, message: 'Each permission must be in format "resource:action"' })
+  @Matches(/^[a-zA-Z]+:[a-zA-Z]+$/, {
+    each: true,
+    message: 'Each permission must be in format "resource:action"',
+  })
   permissions: string[];
 }

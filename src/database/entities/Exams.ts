@@ -1,5 +1,6 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
@@ -8,6 +9,7 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { Questions } from './Questions';
 import { ExamScheduleAssignments } from './ExamScheduleAssignments';
@@ -27,11 +29,6 @@ export class Exams {
   @Column('integer', { name: 'duration', nullable: true })
   duration: number | null;
 
-  @Column('boolean', {
-    name: 'is_practice',
-    nullable: true,
-    default: () => 'false',
-  })
   @Column('enum', {
     name: 'exam_type',
     enum: ['practice', 'official'],
@@ -41,20 +38,10 @@ export class Exams {
   @Column('integer', { name: 'total_questions', nullable: true })
   totalQuestions: number | null;
 
-  @Exclude()
-  @Column('timestamp without time zone', {
-    name: 'created_at',
-    nullable: true,
-    default: () => 'now()',
-  })
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date | null;
 
-  @Exclude()
-  @Column('timestamp without time zone', {
-    name: 'updated_at',
-    nullable: true,
-    default: () => 'now()',
-  })
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date | null;
 
   @ManyToMany(() => Questions, (questions) => questions.exams)
