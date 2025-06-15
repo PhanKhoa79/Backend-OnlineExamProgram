@@ -12,6 +12,8 @@ import { EmailModule } from '../email/email.module';
 import { CleanupService } from './clearnupCodeReset.service';
 import { StudentModule } from '../student/student.module';
 import { RoleModule } from '../role/role.module';
+import { RedisModule } from '../redis/redis.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Accounts]),
@@ -19,6 +21,7 @@ import { RoleModule } from '../role/role.module';
     EmailModule,
     StudentModule,
     RoleModule,
+    RedisModule,
     forwardRef(() => AuthModule),
   ],
   providers: [AccountService, AccountRepository, CleanupService],

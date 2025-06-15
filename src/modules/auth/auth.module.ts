@@ -5,9 +5,8 @@ import { AuthController } from './auth.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Accounts } from '../../database/entities/Accounts';
 import { JwtStrategy } from './jwt.stragegy';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { AuthRepository } from './auth.repository';
 import { AccountModule } from '../account/account.module';
 import { BlacklistToken } from 'src/database/entities/BlacklistToken';
@@ -16,19 +15,25 @@ import { forwardRef } from '@nestjs/common';
 import { EmailModule } from '../email/email.module';
 import { RoleModule } from '../role/role.module';
 import { LoginHistory } from 'src/database/entities/LoginHistory';
+import { NotificationModule } from '../notification/notification.module';
+import { PassportModule } from '@nestjs/passport';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Accounts, BlacklistToken, LoginHistory]),
     forwardRef(() => AccountModule),
     RoleModule,
     EmailModule,
+    NotificationModule,
+    PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') },
-      }),
       inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET', 'your-secret-key'),
+        signOptions: {
+          expiresIn: configService.get<string>('JWT_EXPIRES_IN', '1h'),
+        },
+      }),
     }),
   ],
   providers: [AuthService, JwtStrategy, AuthRepository, TokenCleanupService],

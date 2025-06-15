@@ -21,21 +21,19 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Request } from 'express';
 import { ChangePasswordDto } from './dto/changePassword.dto';
 import { LoginHistoryDto } from '../account/dto/loginHistory.dto';
+import { AccountService } from '../account/account.service';
 dotenv.config();
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly accountRepository: AccountRepository,
-
     private readonly authRepository: AuthRepository,
-
+    private readonly accountRepository: AccountRepository,
     private readonly emailService: EmailService,
-
     private readonly roleService: RoleService,
-
     @InjectRepository(LoginHistory)
     private loginHistoryRepo: Repository<LoginHistory>,
+    private readonly accountService: AccountService,
   ) {}
 
   async validateUser(loginDto: LoginDto): Promise<Accounts> {
@@ -171,12 +169,7 @@ export class AuthService {
     await this.authRepository.blacklistAccessToken(token, expiredAt);
   }
 
-  async activateAccount(
-    token: string,
-    tempPassword: string,
-    newPassword: string,
-  ): Promise<void> {
-    // 1. Lấy account theo activationToken
+  async verifyActivationToken(token: string): Promise<Accounts> {
     const account = await this.accountRepository.findByActivationToken(token);
     if (
       !account ||
@@ -187,6 +180,17 @@ export class AuthService {
         'Link kích hoạt không hợp lệ hoặc đã hết hạn',
       );
     }
+
+    return account;
+  }
+
+  async activateAccount(
+    token: string,
+    tempPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    // 1. Kiểm tra tính hợp lệ của token kích hoạt
+    const account = await this.verifyActivationToken(token);
 
     // 2. So sánh mật khẩu tạm
     const match = await bcrypt.compare(tempPassword, account.password);
@@ -212,9 +216,8 @@ export class AuthService {
       throw new BadRequestException('Tài khoản của bạn chưa được kích hoạt');
     }
 
-    // sinh code 6 số và expires in 15 phút
     const code = Array.from({ length: 6 }, () => randomInt(0, 10)).join('');
-    const expiresAt = calculateExpiryDate('5m');
+    const expiresAt = calculateExpiryDate('30s');
 
     // lưu vào DB
     acct.resetPasswordCode = code;
@@ -222,7 +225,7 @@ export class AuthService {
     await this.accountRepository.saveAccount(acct);
 
     // gửi email
-    await this.emailService.sendForgotPasswordCode(dto.email, code, '5 phút');
+    await this.emailService.sendForgotPasswordCode(dto.email, code, '30 giây');
   }
 
   async verifyResetCode(code: string): Promise<void> {
@@ -306,5 +309,32 @@ export class AuthService {
       ipAddress: h.ipAddress,
       userAgent: h.userAgent,
     }));
+  }
+
+  async resendActivationLink(email: string): Promise<{ message: string }> {
+    return this.accountService.resendActivationLink(email);
+  }
+
+  async findEmailByActivationToken(token: string): Promise<{
+    email: string;
+    isExpired: boolean;
+  }> {
+    const account = await this.authRepository.findByActivationToken(token);
+
+    if (!account) {
+      throw new HttpException(
+        'Không tìm thấy tài khoản với token kích hoạt này',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const isExpired =
+      !account.activationTokenExpiresAt ||
+      account.activationTokenExpiresAt < new Date();
+
+    return {
+      email: account.email,
+      isExpired,
+    };
   }
 }

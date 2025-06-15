@@ -18,18 +18,16 @@ import { SubjectMapper } from './mapper/subject.mapper';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
 import { PermissionsGuard } from '../auth/permissions.guard';
-import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
-import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 
-@Controller('subject')
 @UseInterceptors(CacheInterceptor)
+@Controller('subject')
 export class SubjectController {
   constructor(private readonly subjectService: SubjectService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:create')
-  @CacheEvict(['subject:*'])
   async create(
     @Body() createDto: CreateSubjectDto,
   ): Promise<SubjectResponseDto> {
@@ -40,7 +38,6 @@ export class SubjectController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:update')
-  @CacheEvict(['subject:*'])
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateSubjectDto,
@@ -52,7 +49,6 @@ export class SubjectController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:delete')
-  @CacheEvict(['subject:*'])
   async delete(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
@@ -62,7 +58,6 @@ export class SubjectController {
 
   @Get(':code')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'subject:code:{code}', ttl: 900 })
   async findByCode(@Param('code') code: string): Promise<SubjectResponseDto> {
     const subject = await this.subjectService.findByCode(code);
     return SubjectMapper.toResponseDto(subject);
@@ -70,16 +65,15 @@ export class SubjectController {
 
   @Get('id/:id')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'subject:id:{id}', ttl: 900 })
   async findById(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<SubjectResponseDto> {
     return await this.subjectService.findById(id);
   }
 
+  @CacheTTL(60 * 1000)
   @Get()
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'subject:list', ttl: 300 })
   async findAll(): Promise<SubjectResponseDto[]> {
     const subjects = await this.subjectService.findAll();
     return SubjectMapper.toResponseList(subjects);

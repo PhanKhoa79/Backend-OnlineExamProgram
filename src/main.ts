@@ -4,9 +4,11 @@ import { ValidationPipe } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import * as bodyParser from 'body-parser';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
 
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(
@@ -26,10 +28,16 @@ async function bootstrap() {
   );
   app.use(helmet());
   app.use(cookieParser());
+
+  // Cấu hình CORS
+  const clientUrl = configService.get('CLIENT_URL') || 'http://localhost:3000';
   app.enableCors({
-    origin: process.env.CLIENT_URL,
+    origin: clientUrl,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
+
   app.setGlobalPrefix('api');
   await app.listen(5000);
 }

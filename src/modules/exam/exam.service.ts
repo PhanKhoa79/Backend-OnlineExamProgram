@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -11,9 +12,19 @@ import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
 import { Subjects } from 'src/database/entities/Subjects';
 import * as ExcelJS from 'exceljs';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class ExamService {
+  private readonly logger = new Logger(ExamService.name);
+  private readonly CACHE_KEYS = {
+    EXAM_LIST: 'exam_list',
+    EXAM_DETAIL: 'exam_detail_',
+    EXAM_BY_SUBJECT: 'exam_by_subject_',
+    EXAM_QUESTIONS: 'exam_questions_',
+  };
+  private readonly CACHE_TTL = 600; // 10 phút (giây)
+
   constructor(
     @InjectRepository(Exams)
     private examRepo: Repository<Exams>,
@@ -23,7 +34,53 @@ export class ExamService {
 
     @InjectRepository(Subjects)
     private subjectRepo: Repository<Subjects>,
+
+    private readonly redisService: RedisService,
   ) {}
+
+  /**
+   * Xóa cache khi có thay đổi dữ liệu
+   */
+  private async invalidateCache(key?: string): Promise<void> {
+    try {
+      if (key) {
+        await this.redisService.del(key);
+      } else {
+        // Xóa cache danh sách đề thi
+        await this.redisService.del(this.CACHE_KEYS.EXAM_LIST);
+
+        // Xóa cache chi tiết đề thi
+        const examCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.EXAM_DETAIL}*`,
+        );
+        for (const cacheKey of examCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache đề thi theo môn học
+        const subjectCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.EXAM_BY_SUBJECT}*`,
+        );
+        for (const cacheKey of subjectCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache câu hỏi của đề thi
+        const questionsCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.EXAM_QUESTIONS}*`,
+        );
+        for (const cacheKey of questionsCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error invalidating cache: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
+
   async createExam(createExamDto: CreateExamDto): Promise<Exams> {
     const { questionIds, totalQuestions, subjectId } = createExamDto;
 
@@ -63,7 +120,14 @@ export class ExamService {
       subject,
     });
 
-    return this.examRepo.save(exam);
+    const savedExam = await this.examRepo.save(exam);
+
+    await this.invalidateCache();
+    await this.invalidateCache(
+      `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${subjectId}`,
+    );
+
+    return savedExam;
   }
 
   async updateExam(id: number, updateExamDto: UpdateExamDto): Promise<Exams> {
@@ -77,6 +141,7 @@ export class ExamService {
     }
 
     const { questionIds, totalQuestions, subjectId } = updateExamDto;
+    const oldSubjectId = exam.subject?.id;
 
     if (questionIds) {
       const currentTotalQuestions = exam.totalQuestions;
@@ -148,49 +213,232 @@ export class ExamService {
     if (updateExamDto.totalQuestions !== undefined && !questionIds)
       exam.totalQuestions = updateExamDto.totalQuestions;
 
-    return this.examRepo.save(exam);
+    const updatedExam = await this.examRepo.save(exam);
+
+    // Xóa cache sau khi cập nhật
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.EXAM_DETAIL}${id}`);
+    await this.invalidateCache(`${this.CACHE_KEYS.EXAM_QUESTIONS}${id}`);
+
+    if (oldSubjectId) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${oldSubjectId}`,
+      );
+    }
+
+    if (subjectId && oldSubjectId !== subjectId) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${subjectId}`,
+      );
+    }
+
+    return updatedExam;
   }
 
   async deleteExam(id: number): Promise<void> {
-    await this.examRepo.delete(id);
+    const exam = await this.examRepo.findOne({
+      where: { id },
+      relations: ['subject'],
+    });
+
+    if (exam) {
+      const subjectId = exam.subject?.id;
+      await this.examRepo.delete(id);
+
+      // Xóa cache sau khi xóa
+      await this.invalidateCache();
+      await this.invalidateCache(`${this.CACHE_KEYS.EXAM_DETAIL}${id}`);
+      await this.invalidateCache(`${this.CACHE_KEYS.EXAM_QUESTIONS}${id}`);
+
+      if (subjectId) {
+        await this.invalidateCache(
+          `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${subjectId}`,
+        );
+      }
+    } else {
+      await this.examRepo.delete(id);
+      await this.invalidateCache();
+    }
   }
 
   async getExamById(id: number): Promise<Exams> {
-    const exam = await this.examRepo.findOne({
-      where: { id },
-      relations: ['questions', 'subject'],
-    });
-    if (!exam) throw new NotFoundException('Exam not found');
-    return exam;
+    const cacheKey = `${this.CACHE_KEYS.EXAM_DETAIL}${id}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Exams;
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const exam = await this.examRepo.findOne({
+        where: { id },
+        relations: ['questions', 'subject'],
+      });
+
+      if (!exam) throw new NotFoundException('Exam not found');
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(exam),
+        this.CACHE_TTL,
+      );
+
+      return exam;
+    } catch (error) {
+      this.logger.error(
+        `Error in getExamById: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const exam = await this.examRepo.findOne({
+        where: { id },
+        relations: ['questions', 'subject'],
+      });
+
+      if (!exam) throw new NotFoundException('Exam not found');
+      return exam;
+    }
   }
 
   async getExamsBySubject(subjectId: number): Promise<Exams[]> {
-    return this.examRepo.find({
-      where: {
-        subject: {
-          id: subjectId,
+    const cacheKey = `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${subjectId}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Exams[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const exams = await this.examRepo.find({
+        where: {
+          subject: {
+            id: subjectId,
+          },
         },
-      },
-      relations: ['subject'],
-    });
+        relations: ['subject'],
+      });
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(exams),
+        this.CACHE_TTL,
+      );
+
+      return exams;
+    } catch (error) {
+      this.logger.error(
+        `Error in getExamsBySubject: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.examRepo.find({
+        where: {
+          subject: {
+            id: subjectId,
+          },
+        },
+        relations: ['subject'],
+      });
+    }
   }
+
   async getAllExams(): Promise<Exams[]> {
-    return await this.examRepo.find({
-      relations: ['subject'],
-      order: {
-        updatedAt: 'DESC',
-        createdAt: 'DESC',
-      },
-    });
+    const cacheKey = this.CACHE_KEYS.EXAM_LIST;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Exams[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const exams = await this.examRepo.find({
+        relations: ['subject'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
+      });
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(exams),
+        this.CACHE_TTL,
+      );
+
+      return exams;
+    } catch (error) {
+      this.logger.error(
+        `Error in getAllExams: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.examRepo.find({
+        relations: ['subject'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
+      });
+    }
   }
 
   async getQuestionsOfExam(id: number): Promise<Questions[]> {
-    const exam = await this.examRepo.findOne({
-      where: { id },
-      relations: ['questions', 'questions.answers'],
-    });
-    if (!exam) throw new NotFoundException('Exam not found');
-    return exam.questions;
+    const cacheKey = `${this.CACHE_KEYS.EXAM_QUESTIONS}${id}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Questions[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const exam = await this.examRepo.findOne({
+        where: { id },
+        relations: ['questions', 'questions.answers'],
+      });
+
+      if (!exam) throw new NotFoundException('Exam not found');
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(exam.questions),
+        this.CACHE_TTL,
+      );
+
+      return exam.questions;
+    } catch (error) {
+      this.logger.error(
+        `Error in getQuestionsOfExam: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const exam = await this.examRepo.findOne({
+        where: { id },
+        relations: ['questions', 'questions.answers'],
+      });
+
+      if (!exam) throw new NotFoundException('Exam not found');
+      return exam.questions;
+    }
   }
 
   async exportExamWithQuestions(

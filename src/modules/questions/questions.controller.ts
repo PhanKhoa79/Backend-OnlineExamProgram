@@ -30,18 +30,14 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Response } from 'express';
 import * as fs from 'fs';
-import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
-import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
 @Controller('questions')
-@UseInterceptors(CacheInterceptor)
 export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:create')
-  @CacheEvict(['question:*'])
   async create(@Body() dto: CreateQuestionDto): Promise<QuestionDto> {
     return this.questionsService.create(dto);
   }
@@ -49,7 +45,6 @@ export class QuestionsController {
   @Post('bulk')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:create')
-  @CacheEvict(['question:*'])
   async createMany(@Body() dto: CreateManyQuestionDto): Promise<QuestionDto[]> {
     return this.questionsService.createMany(dto.questions);
   }
@@ -57,7 +52,6 @@ export class QuestionsController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:update')
-  @CacheEvict(['question:*'])
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateQuestionDto,
@@ -68,7 +62,6 @@ export class QuestionsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:delete')
-  @CacheEvict(['question:*'])
   async delete(@Param('id', ParseIntPipe) id: number) {
     await this.questionsService.delete(id);
     return { message: 'Xóa câu hỏi thành công' };
@@ -109,21 +102,18 @@ export class QuestionsController {
   }
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'question:id:{id}', ttl: 600 })
   async findById(@Param('id', ParseIntPipe) id: number): Promise<QuestionDto> {
     return this.questionsService.findById(id);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'question:list', ttl: 300 })
   async findAll(): Promise<QuestionDto[]> {
     return this.questionsService.findAll();
   }
 
   @Get('/by-difficulty')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'question:difficulty:{level}', ttl: 600 })
   async findByDifficulty(
     @Query('level') level: DifficultyLevel,
   ): Promise<QuestionDto[]> {
@@ -132,7 +122,6 @@ export class QuestionsController {
 
   @Get('/by-subject/:subjectId')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'question:subject:{subjectId}', ttl: 600 })
   async findBySubject(
     @Param('subjectId', ParseIntPipe) subjectId: number,
   ): Promise<QuestionDto[]> {

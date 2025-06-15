@@ -11,6 +11,7 @@ import {
   Get,
   ParseIntPipe,
   UseGuards,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -20,12 +21,20 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { ChangePasswordDto } from './dto/changePassword.dto';
+import { ResendActivationDto } from './dto/resend-activation.dto';
+import { PermissionsGuard } from './permissions.guard';
+import { Permissions } from './decorator/permissions.decotator';
+import { NotificationService } from '../notification/notification.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @Post('login')
+  @HttpCode(200)
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -124,12 +133,20 @@ export class AuthController {
     return { message: 'Mã hợp lệ' };
   }
 
+  @Get('verify-activation-token/:token')
+  @HttpCode(200)
+  async verifyActivationToken(@Param('token') token: string) {
+    try {
+      await this.authService.verifyActivationToken(token);
+      return { valid: true, message: 'Token kích hoạt hợp lệ' };
+    } catch (error) {
+      return { valid: false, message: error.message };
+    }
+  }
+
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
-  async changePassword(
-    @Body() dto: ChangePasswordDto,
-    @Req() req: Request, // hoặc @GetUser() user
-  ) {
+  async changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
     const accountId = (req as any).user?.userId;
     if (!accountId) throw new UnauthorizedException();
 
@@ -144,5 +161,42 @@ export class AuthController {
     const histories =
       await this.authService.getLoginHistoryByAccountId(accountId);
     return histories;
+  }
+
+  @Post('resend-activation')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('account:create')
+  @HttpCode(HttpStatus.OK)
+  async resendActivationLink(@Body() dto: ResendActivationDto) {
+    return await this.authService.resendActivationLink(dto.email);
+  }
+
+  @Post('request-activation')
+  @HttpCode(HttpStatus.OK)
+  async requestActivation(@Body() dto: ResendActivationDto) {
+    await this.notificationService.createActivationRequestNotification(
+      dto.email,
+    );
+    return {
+      message: 'Yêu cầu kích hoạt tài khoản đã được gửi đến quản trị viên',
+    };
+  }
+
+  @Get('find-email-by-token/:token')
+  @HttpCode(HttpStatus.OK)
+  async findEmailByActivationToken(@Param('token') token: string) {
+    try {
+      const result = await this.authService.findEmailByActivationToken(token);
+      return {
+        found: true,
+        email: result.email,
+        isExpired: result.isExpired,
+      };
+    } catch (error) {
+      return {
+        found: false,
+        message: error instanceof Error ? error.message : 'Lỗi không xác định',
+      };
+    }
   }
 }

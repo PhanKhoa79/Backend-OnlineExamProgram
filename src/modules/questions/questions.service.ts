@@ -1,6 +1,6 @@
 // src/modules/questions/question.service.ts
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Questions } from 'src/database/entities/Questions';
@@ -16,9 +16,19 @@ import { Response } from 'express';
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
 import { SubjectService } from '../subject/subject.service';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class QuestionsService {
+  private readonly logger = new Logger(QuestionsService.name);
+  private readonly CACHE_KEYS = {
+    QUESTIONS_LIST: 'questions_list',
+    QUESTION_DETAIL: 'question_detail_',
+    QUESTIONS_BY_SUBJECT: 'questions_by_subject_',
+    QUESTIONS_BY_DIFFICULTY: 'questions_by_difficulty_',
+  };
+  private readonly CACHE_TTL = 600; // 10 phút (giây)
+
   constructor(
     @InjectRepository(Questions)
     private readonly questionRepo: Repository<Questions>,
@@ -27,7 +37,53 @@ export class QuestionsService {
     private readonly subjectRepo: Repository<Subjects>,
 
     private readonly subjectService: SubjectService,
+    private readonly redisService: RedisService,
   ) {}
+
+  /**
+   * Xóa cache khi có thay đổi dữ liệu
+   */
+  private async invalidateCache(key?: string): Promise<void> {
+    try {
+      if (key) {
+        await this.redisService.del(key);
+        this.logger.log(`🗑️ Invalidated cache: ${key}`);
+      } else {
+        // Xóa cache danh sách câu hỏi
+        await this.redisService.del(this.CACHE_KEYS.QUESTIONS_LIST);
+        this.logger.log(`🗑️ Invalidated questions list cache`);
+
+        // Xóa cache chi tiết câu hỏi
+        const detailCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.QUESTION_DETAIL}*`,
+        );
+        for (const cacheKey of detailCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache câu hỏi theo môn học
+        const subjectCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.QUESTIONS_BY_SUBJECT}*`,
+        );
+        for (const cacheKey of subjectCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache câu hỏi theo độ khó
+        const difficultyCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.QUESTIONS_BY_DIFFICULTY}*`,
+        );
+        for (const cacheKey of difficultyCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error invalidating cache: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
 
   async create(dto: CreateQuestionDto): Promise<QuestionDto> {
     const subject = await this.subjectRepo.findOne({
@@ -39,6 +95,10 @@ export class QuestionsService {
     entity.subject = subject;
 
     const saved = await this.questionRepo.save(entity);
+
+    // Xóa cache sau khi tạo mới
+    await this.invalidateCache();
+
     return QuestionMapper.toDto(saved);
   }
 
@@ -58,6 +118,9 @@ export class QuestionsService {
       const saved = await this.questionRepo.save(entity);
       result.push(QuestionMapper.toDto(saved));
     }
+
+    // Xóa cache sau khi tạo nhiều câu hỏi
+    await this.invalidateCache();
 
     return result;
   }
@@ -119,13 +182,49 @@ export class QuestionsService {
     }
 
     const updated = await this.questionRepo.save(question);
+
+    // Xóa cache sau khi cập nhật
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.QUESTION_DETAIL}${id}`);
+    if (question.subject) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.QUESTIONS_BY_SUBJECT}${question.subject.id}`,
+      );
+    }
+    if (question.difficultyLevel) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.QUESTIONS_BY_DIFFICULTY}${question.difficultyLevel}`,
+      );
+    }
+
     return QuestionMapper.toDto(updated);
   }
 
   async delete(id: number): Promise<void> {
-    const question = await this.questionRepo.findOneBy({ id });
+    const question = await this.questionRepo.findOne({
+      where: { id },
+      relations: ['subject'],
+    });
     if (!question) throw new NotFoundException('Question not found');
+
+    const subjectId = question.subject?.id;
+    const difficultyLevel = question.difficultyLevel;
+
     await this.questionRepo.remove(question);
+
+    // Xóa cache sau khi xóa
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.QUESTION_DETAIL}${id}`);
+    if (subjectId) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.QUESTIONS_BY_SUBJECT}${subjectId}`,
+      );
+    }
+    if (difficultyLevel) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.QUESTIONS_BY_DIFFICULTY}${difficultyLevel}`,
+      );
+    }
   }
 
   async updateMany(
@@ -187,6 +286,9 @@ export class QuestionsService {
       results.push(QuestionMapper.toDto(updated));
     }
 
+    // Xóa cache sau khi cập nhật nhiều câu hỏi
+    await this.invalidateCache();
+
     return results;
   }
 
@@ -202,44 +304,198 @@ export class QuestionsService {
     }
 
     await this.questionRepo.remove(questions);
+
+    // Xóa cache sau khi xóa nhiều câu hỏi
+    await this.invalidateCache();
   }
 
   async findById(id: number): Promise<QuestionDto> {
-    const question = await this.questionRepo.findOne({
-      where: { id },
-      relations: ['answers', 'subject'],
-    });
-    if (!question) throw new NotFoundException('Question not found');
-    return QuestionMapper.toDto(question);
+    const cacheKey = `${this.CACHE_KEYS.QUESTION_DETAIL}${id}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const question = await this.questionRepo.findOne({
+        where: { id },
+        relations: ['answers', 'subject'],
+      });
+
+      if (!question) {
+        throw new NotFoundException(`Question with id ${id} not found`);
+      }
+
+      const dto = QuestionMapper.toDto(question);
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(dto),
+        this.CACHE_TTL,
+      );
+
+      return dto;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in findById: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const question = await this.questionRepo.findOne({
+        where: { id },
+        relations: ['answers', 'subject'],
+      });
+
+      if (!question) {
+        throw new NotFoundException(`Question with id ${id} not found`);
+      }
+
+      return QuestionMapper.toDto(question);
+    }
   }
 
   async findAll(): Promise<QuestionDto[]> {
-    const list = await this.questionRepo.find({
-      relations: ['answers', 'subject'],
-      order: {
-        updatedAt: 'DESC',
-        createdAt: 'DESC',
-      },
-    });
-    return list.map((q) => QuestionMapper.toDto(q));
+    const cacheKey = this.CACHE_KEYS.QUESTIONS_LIST;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const questions = await this.questionRepo.find({
+        relations: ['answers', 'subject'],
+        order: { createdAt: 'DESC' },
+      });
+
+      const dtos = questions.map(QuestionMapper.toDto);
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(dtos),
+        this.CACHE_TTL,
+      );
+
+      return dtos;
+    } catch (error) {
+      this.logger.error(
+        `Error in findAll: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const questions = await this.questionRepo.find({
+        relations: ['answers', 'subject'],
+        order: { createdAt: 'DESC' },
+      });
+
+      return questions.map(QuestionMapper.toDto);
+    }
   }
 
   async findByDifficulty(level: DifficultyLevel): Promise<QuestionDto[]> {
-    const list = await this.questionRepo.find({
-      where: { difficultyLevel: level },
-      relations: ['answers', 'subject'],
-    });
-    return list.map((q) => QuestionMapper.toDto(q));
+    const cacheKey = `${this.CACHE_KEYS.QUESTIONS_BY_DIFFICULTY}${level}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        this.logger.log(`✅ Cache hit: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const questions = await this.questionRepo.find({
+        where: { difficultyLevel: level },
+        relations: ['answers', 'subject'],
+      });
+
+      const dtos = questions.map(QuestionMapper.toDto);
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(dtos),
+        this.CACHE_TTL,
+      );
+
+      return dtos;
+    } catch (error) {
+      this.logger.error(
+        `Error in findByDifficulty: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const questions = await this.questionRepo.find({
+        where: { difficultyLevel: level },
+        relations: ['answers', 'subject'],
+      });
+
+      return questions.map(QuestionMapper.toDto);
+    }
   }
 
   async findBySubject(subjectId: number): Promise<QuestionDto[]> {
-    const list = await this.questionRepo.find({
-      where: { subject: { id: subjectId } },
-      relations: ['answers', 'subject'],
-    });
-    return list.map((q) => QuestionMapper.toDto(q));
+    const cacheKey = `${this.CACHE_KEYS.QUESTIONS_BY_SUBJECT}${subjectId}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        this.logger.log(`✅ Cache hit: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const questions = await this.questionRepo.find({
+        where: { subject: { id: subjectId } },
+        relations: ['answers', 'subject'],
+      });
+
+      const dtos = questions.map(QuestionMapper.toDto);
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(dtos),
+        this.CACHE_TTL,
+      );
+
+      return dtos;
+    } catch (error) {
+      this.logger.error(
+        `Error in findBySubject: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const questions = await this.questionRepo.find({
+        where: { subject: { id: subjectId } },
+        relations: ['answers', 'subject'],
+      });
+
+      return questions.map(QuestionMapper.toDto);
+    }
   }
 
+  // Các phương thức nhập/xuất file không cần cache
   async importQuestionsFromFile(filePath: string, type: 'xlsx' | 'csv') {
     const questions: CreateQuestionDto[] = [];
 

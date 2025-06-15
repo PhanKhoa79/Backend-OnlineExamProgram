@@ -19,11 +19,7 @@ import { UpdateExamScheduleAssignmentDto } from './dto/update-assignment.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../../modules/auth/decorator/permissions.decotator';
-import { ExamScheduleTimeInterceptor } from '../exam-schedule/exam-schedule-time.interceptor';
-import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
-import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
-@UseInterceptors(ExamScheduleTimeInterceptor, CacheInterceptor)
 @Controller('exam-schedule-assignments')
 export class ExamScheduleAssignmentController {
   constructor(
@@ -34,7 +30,6 @@ export class ExamScheduleAssignmentController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:create')
-  @CacheEvict(['assignment:*'])
   create(@Body() createDto: CreateExamScheduleAssignmentDto) {
     return this.assignmentService.create(createDto);
   }

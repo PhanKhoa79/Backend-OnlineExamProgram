@@ -1,15 +1,19 @@
 import { Module } from '@nestjs/common';
-import { Role } from 'src/database/entities/Role';
-import { RoleService } from './role.service';
-import { RoleController } from './role.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { RolePermission } from 'src/database/entities/RolePermission';
+import { RoleController } from './role.controller';
+import { RoleService } from './role.service';
+import { Role } from 'src/database/entities/Role';
 import { Permission } from 'src/database/entities/Permission';
+import { RolePermission } from 'src/database/entities/RolePermission';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Role, RolePermission, Permission])],
-  providers: [RoleService],
+  imports: [
+    TypeOrmModule.forFeature([Role, Permission, RolePermission]),
+    RedisModule,
+  ],
   controllers: [RoleController],
+  providers: [RoleService],
   exports: [RoleService],
 })
 export class RoleModule {}

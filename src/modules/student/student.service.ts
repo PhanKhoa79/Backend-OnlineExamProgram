@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { StudentRepository } from './student.repository';
 import { StudentDto } from './dto/student.dto';
 import { Students } from 'src/database/entities/Students';
@@ -18,17 +18,60 @@ import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
-import { RedisCacheService } from 'src/common/cache/redis-cache.service';
+import { RedisService } from '../../modules/redis/redis.service';
 
 @Injectable()
 export class StudentService {
+  private readonly logger = new Logger(StudentService.name);
+  private readonly CACHE_KEYS = {
+    STUDENTS_LIST: 'students_list',
+    STUDENT_DETAIL: 'student_detail_',
+    STUDENTS_BY_CLASS: 'students_by_class_',
+  };
+  private readonly CACHE_TTL = 600;
+
   constructor(
     private readonly studentRepository: StudentRepository,
-
+    private readonly redisService: RedisService,
     @InjectRepository(Classes)
     private readonly classRepo: Repository<Classes>,
-    private readonly cacheService: RedisCacheService,
   ) {}
+
+  /**
+   * Xóa cache khi có thay đổi dữ liệu
+   */
+  private async invalidateCache(key?: string): Promise<void> {
+    try {
+      if (key) {
+        await this.redisService.del(key);
+        this.logger.log(`🗑️ Invalidated cache: ${key}`);
+      } else {
+        // Xóa cache danh sách sinh viên
+        await this.redisService.del(this.CACHE_KEYS.STUDENTS_LIST);
+
+        // Xóa cache chi tiết sinh viên
+        const detailCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.STUDENT_DETAIL}*`,
+        );
+        for (const cacheKey of detailCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache sinh viên theo lớp
+        const classCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.STUDENTS_BY_CLASS}*`,
+        );
+        for (const cacheKey of classCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error invalidating cache: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
 
   async create(dto: CreateStudentDto): Promise<Students> {
     const existing = await this.studentRepository.findOne({
@@ -45,7 +88,12 @@ export class StudentService {
       class: classRef,
     });
 
-    return this.studentRepository.save(student);
+    const result = await this.studentRepository.save(student);
+
+    // Xóa cache sau khi tạo mới
+    await this.invalidateCache();
+
+    return result;
   }
 
   async createBulk(dto: CreateBulkStudentDto): Promise<BulkCreateResult> {
@@ -171,6 +219,9 @@ export class StudentService {
       }
 
       await queryRunner.commitTransaction();
+
+      // Xóa cache sau khi thêm nhiều sinh viên thành công
+      await this.invalidateCache();
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -197,7 +248,12 @@ export class StudentService {
       this.studentRepository.merge(student, updateData);
     }
 
-    return await this.studentRepository.save(student);
+    const result = await this.studentRepository.save(student);
+
+    // Xóa cache sau khi cập nhật
+    await this.invalidateCache();
+
+    return result;
   }
 
   async update(id: number, dto: UpdateStudentDto): Promise<Students> {
@@ -221,8 +277,20 @@ export class StudentService {
     }
 
     this.studentRepository.merge(student, dto);
-    return await this.studentRepository.save(student);
+    const result = await this.studentRepository.save(student);
+
+    // Xóa cache sau khi cập nhật
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.STUDENT_DETAIL}${id}`);
+    if (student.class) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.STUDENTS_BY_CLASS}${student.class.id}`,
+      );
+    }
+
+    return result;
   }
+
   async attachAccountToStudentByEmail(email: string, account: Accounts) {
     const student = await this.getStudentByEmail(email);
 
@@ -233,8 +301,14 @@ export class StudentService {
     }
 
     student.account = account;
-    return await this.studentRepository.save(student);
+    const result = await this.studentRepository.save(student);
+
+    // Xóa cache sau khi cập nhật
+    await this.invalidateCache();
+
+    return result;
   }
+
   async getListStudentWithoutAccount(): Promise<StudentDto[]> {
     return await this.studentRepository.getListStudentWithoutAccount();
   }
@@ -254,63 +328,171 @@ export class StudentService {
   }
 
   async findById(id: number): Promise<Students> {
-    const cacheKey = this.cacheService.generateKey(
-      RedisCacheService.KEYS.STUDENT,
-      'id',
-      id,
-    );
+    const cacheKey = `${this.CACHE_KEYS.STUDENT_DETAIL}${id}`;
 
-    return this.cacheService.getOrSet(
-      cacheKey,
-      async () => {
-        const student = await this.studentRepository.findOne({
-          where: { id },
-          relations: ['class'],
-        });
-        if (!student) throw new NotFoundException('Không tìm thấy sinh viên');
-        return student;
-      },
-      { ttl: RedisCacheService.TTL.MEDIUM },
-    );
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Students;
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const student = await this.studentRepository.findOne({
+        where: { id },
+        relations: ['class'],
+      });
+
+      if (!student) throw new NotFoundException('Không tìm thấy sinh viên');
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(student),
+        this.CACHE_TTL,
+      );
+
+      return student;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in findById: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const student = await this.studentRepository.findOne({
+        where: { id },
+        relations: ['class'],
+      });
+
+      if (!student) throw new NotFoundException('Không tìm thấy sinh viên');
+
+      return student;
+    }
   }
 
   async findAll(): Promise<Students[]> {
-    const cacheKey = this.cacheService.generateKey(
-      RedisCacheService.KEYS.STUDENT,
-      'list',
-    );
+    const cacheKey = this.CACHE_KEYS.STUDENTS_LIST;
 
-    return this.cacheService.getOrSet(
-      cacheKey,
-      async () => {
-        return this.studentRepository.find({
-          relations: ['class'],
-          order: { createdAt: 'DESC' },
-        });
-      },
-      { ttl: RedisCacheService.TTL.SHORT },
-    );
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Students[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const students = await this.studentRepository.find({
+        relations: ['class'],
+        order: { createdAt: 'DESC' },
+      });
+
+      // Lưu vào cache với TTL là 600 giây (10 phút)
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(students),
+        this.CACHE_TTL,
+      );
+
+      return students;
+    } catch (error) {
+      this.logger.error(
+        `Error in findAll: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn trả về dữ liệu từ database
+      return this.studentRepository.find({
+        relations: ['class'],
+        order: { createdAt: 'DESC' },
+      });
+    }
   }
 
   async delete(id: number): Promise<void> {
+    const student = await this.studentRepository.findOne({
+      where: { id },
+      relations: ['class'],
+    });
+
+    if (!student) {
+      throw new NotFoundException(
+        `Không tìm thấy sinh viên để xóa (ID: ${id})`,
+      );
+    }
+
+    const classId = student.class?.id;
     const result = await this.studentRepository.delete(id);
+
     if (result.affected === 0) {
       throw new NotFoundException(
         `Không tìm thấy sinh viên để xóa (ID: ${id})`,
       );
     }
+
+    // Xóa cache sau khi xóa
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.STUDENT_DETAIL}${id}`);
+    if (classId) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.STUDENTS_BY_CLASS}${classId}`,
+      );
+    }
   }
 
   async findByClassId(classId: number): Promise<StudentDto[]> {
-    const students = await this.studentRepository.find({
-      where: {
-        class: { id: classId },
-      },
-      relations: ['class', 'account'],
-      order: { createdAt: 'DESC' },
-    });
+    const cacheKey = `${this.CACHE_KEYS.STUDENTS_BY_CLASS}${classId}`;
 
-    return StudentMapper.toResponseList(students);
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as StudentDto[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const students = await this.studentRepository.find({
+        where: {
+          class: { id: classId },
+        },
+        relations: ['class', 'account'],
+        order: { createdAt: 'DESC' },
+      });
+
+      const studentDtos = StudentMapper.toResponseList(students);
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(studentDtos),
+        this.CACHE_TTL,
+      );
+
+      return studentDtos;
+    } catch (error) {
+      this.logger.error(
+        `Error in findByClassId: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn trả về dữ liệu từ database
+      const students = await this.studentRepository.find({
+        where: {
+          class: { id: classId },
+        },
+        relations: ['class', 'account'],
+        order: { createdAt: 'DESC' },
+      });
+
+      return StudentMapper.toResponseList(students);
+    }
   }
 
   async importStudentsFromFile(filePath: string, type: 'xlsx' | 'csv') {

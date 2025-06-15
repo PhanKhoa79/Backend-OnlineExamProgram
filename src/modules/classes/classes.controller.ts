@@ -18,18 +18,14 @@ import { ClassMapper } from './mapper/class.mapper';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
-import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
 @Controller('classes')
-@UseInterceptors(CacheInterceptor)
 export class ClassesController {
   constructor(private readonly classesService: ClassesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('class:create')
-  @CacheEvict(['class:*'])
   async create(@Body() createDto: CreateClassDto): Promise<ClassResponseDto> {
     const entity = await this.classesService.create(createDto);
     return ClassMapper.toResponseDto(entity);
@@ -38,7 +34,6 @@ export class ClassesController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('class:update')
-  @CacheEvict(['class:*'])
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateClassDto,
@@ -50,7 +45,6 @@ export class ClassesController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('class:delete')
-  @CacheEvict(['class:*'])
   async delete(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
@@ -60,7 +54,6 @@ export class ClassesController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'class:id:{id}', ttl: 600 })
   async findById(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ClassResponseDto> {
@@ -70,7 +63,6 @@ export class ClassesController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'class:list', ttl: 300 })
   async findAll(): Promise<ClassResponseDto[]> {
     const list = await this.classesService.findAll();
     return ClassMapper.toResponseList(list);

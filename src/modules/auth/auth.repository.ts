@@ -53,4 +53,11 @@ export class AuthRepository extends Repository<Accounts> {
       .where('expiresAt < :now', { now })
       .execute();
   }
+
+  async findByActivationToken(token: string): Promise<Accounts | null> {
+    return this.findOne({
+      where: { activationToken: token },
+      relations: ['role'],
+    });
+  }
 }

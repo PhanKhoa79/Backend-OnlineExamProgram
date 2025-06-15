@@ -11,7 +11,6 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import { ExamScheduleService } from './exam-schedule.service';
 import { CreateExamScheduleDto } from './dto/create-exam-schedule.dto';
@@ -19,11 +18,7 @@ import { UpdateExamScheduleDto } from './dto/update-exam-schedule.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../../modules/auth/decorator/permissions.decotator';
-import { ExamScheduleTimeInterceptor } from './exam-schedule-time.interceptor';
-import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
-import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
-@UseInterceptors(ExamScheduleTimeInterceptor, CacheInterceptor)
 @Controller('exam-schedules')
 export class ExamScheduleController {
   constructor(private readonly examScheduleService: ExamScheduleService) {}
@@ -32,7 +27,6 @@ export class ExamScheduleController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:create')
-  @CacheEvict(['exam-schedule:*'])
   create(@Body() createDto: CreateExamScheduleDto) {
     return this.examScheduleService.create(createDto);
   }
@@ -40,7 +34,6 @@ export class ExamScheduleController {
   @Get()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:view')
-  @Cache({ key: 'exam-schedule:list', ttl: 60 })
   findAll(
     @Query('status') status?: 'active' | 'completed' | 'cancelled',
     @Query('startDate') startDate?: string,

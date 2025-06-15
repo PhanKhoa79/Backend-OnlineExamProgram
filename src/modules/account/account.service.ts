@@ -1,5 +1,5 @@
 // src/modules/account/account.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { CreateAccountDto } from './dto/createAccount.dto';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,16 +19,60 @@ import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class AccountService {
+  private readonly logger = new Logger(AccountService.name);
+  private readonly CACHE_KEYS = {
+    ACCOUNT_LIST: 'account_list',
+    ACCOUNT_DETAIL: 'account_detail_',
+    ACCOUNT_BY_EMAIL: 'account_by_email_',
+  };
+  private readonly CACHE_TTL = 600; // 10 phút (giây)
+
   constructor(
     private readonly accountRepository: AccountRepository,
     private readonly emailService: EmailService,
-
     private readonly studentService: StudentService,
     private readonly roleService: RoleService,
+    private readonly redisService: RedisService,
   ) {}
+
+  /**
+   * Xóa cache khi có thay đổi dữ liệu
+   */
+  private async invalidateCache(key?: string): Promise<void> {
+    try {
+      if (key) {
+        await this.redisService.del(key);
+      } else {
+        // Xóa cache danh sách tài khoản
+        await this.redisService.del(this.CACHE_KEYS.ACCOUNT_LIST);
+
+        // Xóa cache chi tiết tài khoản
+        const accountCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.ACCOUNT_DETAIL}*`,
+        );
+        for (const cacheKey of accountCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache tài khoản theo email
+        const emailCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.ACCOUNT_BY_EMAIL}*`,
+        );
+        for (const cacheKey of emailCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error invalidating cache: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
 
   private async createAccount(
     data: CreateAccountDto,
@@ -65,8 +109,66 @@ export class AccountService {
 
     const newAccount = await this.accountRepository.saveAccount(toSave);
 
+    // Xóa cache sau khi tạo mới
+    await this.invalidateCache();
+
     return newAccount;
   }
+
+  /**
+   * Gửi lại link kích hoạt tài khoản qua email
+   * @param email Email của tài khoản cần gửi lại link kích hoạt
+   * @returns Thông tin về việc gửi email thành công
+   */
+  async resendActivationLink(email: string): Promise<{ message: string }> {
+    // Tìm tài khoản theo email
+    const account = await this.accountRepository.findByEmail(email);
+    if (!account) {
+      throw new HttpException('Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+    }
+
+    // Kiểm tra xem tài khoản đã kích hoạt chưa
+    if (account.isActive) {
+      throw new HttpException(
+        'Tài khoản đã được kích hoạt',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Tạo token kích hoạt mới
+    account.activationToken = uuidv4();
+    account.activationTokenExpiresAt = calculateExpiryDate('24h');
+    account.updatedAt = new Date();
+
+    // Lưu tài khoản với token mới
+    await this.accountRepository.saveAccount(account);
+
+    // Tạo mật khẩu tạm thời mới
+    const tempPassword = generateRandomPassword();
+    account.password = await bcrypt.hash(tempPassword, 10);
+    await this.accountRepository.saveAccount(account);
+
+    // Gửi email kích hoạt
+    const emailDto: SendEmailDto = {
+      to: account.email,
+      username: account.accountname,
+      tempPassword,
+      activationToken: account.activationToken!,
+      expiresIn: '24 giờ',
+    };
+    await this.emailService.sendEmail(emailDto);
+
+    // Xóa cache liên quan đến tài khoản
+    await this.invalidateCache(`${this.CACHE_KEYS.ACCOUNT_BY_EMAIL}${email}`);
+    if (account.id) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.ACCOUNT_DETAIL}${account.id}`,
+      );
+    }
+
+    return { message: 'Đã gửi lại link kích hoạt tài khoản qua email' };
+  }
+
   async addAccount(data: CreateAccountDto) {
     const tempPassword = data.password;
     const newAccount = await this.createAccount(data, tempPassword, data.role);
@@ -173,6 +275,13 @@ export class AccountService {
 
     await this.accountRepository.save(account);
 
+    // Xóa cache sau khi cập nhật
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.ACCOUNT_DETAIL}${id}`);
+    await this.invalidateCache(
+      `${this.CACHE_KEYS.ACCOUNT_BY_EMAIL}${account.email}`,
+    );
+
     return account;
   }
 
@@ -183,7 +292,14 @@ export class AccountService {
       throw new HttpException('Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
     }
 
+    const email = account.email;
+
     await this.accountRepository.deleteById(id);
+
+    // Xóa cache sau khi xóa
+    await this.invalidateCache();
+    await this.invalidateCache(`${this.CACHE_KEYS.ACCOUNT_DETAIL}${id}`);
+    await this.invalidateCache(`${this.CACHE_KEYS.ACCOUNT_BY_EMAIL}${email}`);
   }
 
   async deleteAccountsByIds(ids: number[]): Promise<void> {
@@ -199,35 +315,163 @@ export class AccountService {
 
     // Xóa nhiều tài khoản cùng lúc
     await this.accountRepository.delete(ids);
+
+    // Xóa cache sau khi xóa
+    await this.invalidateCache();
+    for (const account of accounts) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.ACCOUNT_DETAIL}${account.id}`,
+      );
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.ACCOUNT_BY_EMAIL}${account.email}`,
+      );
+    }
   }
 
   async getAllAccounts(): Promise<AccountDto[]> {
-    return await this.accountRepository.getAllAccounts();
+    const cacheKey = this.CACHE_KEYS.ACCOUNT_LIST;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as AccountDto[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const accounts = await this.accountRepository.getAllAccounts();
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(accounts),
+        this.CACHE_TTL,
+      );
+      return accounts;
+    } catch (error) {
+      this.logger.error(
+        `Error in getAllAccounts: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.accountRepository.getAllAccounts();
+    }
   }
 
   async getAccountInfoByEmail(
     email: string,
   ): Promise<{ accountname: string; role: string }> {
-    const account = await this.accountRepository.findByEmail(email);
+    const cacheKey = `${this.CACHE_KEYS.ACCOUNT_BY_EMAIL}${email}`;
 
-    if (!account) {
-      throw new HttpException('Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as { accountname: string; role: string };
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const account = await this.accountRepository.findByEmail(email);
+      if (!account) {
+        throw new HttpException(
+          'Tài khoản không tồn tại',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      const result = {
+        accountname: account.accountname,
+        role: account.role.name,
+      };
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(result),
+        this.CACHE_TTL,
+      );
+      return result;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getAccountInfoByEmail: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const account = await this.accountRepository.findByEmail(email);
+      if (!account) {
+        throw new HttpException(
+          'Tài khoản không tồn tại',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return {
+        accountname: account.accountname,
+        role: account.role.name,
+      };
     }
-
-    return {
-      accountname: account.accountname,
-      role: account.role.name,
-    };
   }
 
   async getAccountInfoById(id: number): Promise<Accounts> {
-    const account = await this.accountRepository.findById(id);
+    const cacheKey = `${this.CACHE_KEYS.ACCOUNT_DETAIL}${id}`;
 
-    if (!account) {
-      throw new HttpException('Tài khoản không tồn tại', HttpStatus.NOT_FOUND);
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Accounts;
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const account = await this.accountRepository.findById(id);
+      if (!account) {
+        throw new HttpException(
+          'Tài khoản không tồn tại',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(account),
+        this.CACHE_TTL,
+      );
+
+      return account;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getAccountInfoById: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const account = await this.accountRepository.findById(id);
+      if (!account) {
+        throw new HttpException(
+          'Tài khoản không tồn tại',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      return account;
     }
-    return account;
   }
+
+  // Không cache các hàm import/export vì chúng thường là thao tác không lặp lại nhiều
   async importAccountsFromFile(filePath: string, type: 'xlsx' | 'csv') {
     const accounts: CreateAccountDto[] = [];
 

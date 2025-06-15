@@ -10,7 +10,6 @@ import {
   UseGuards,
   Query,
   Res,
-  UseInterceptors,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ExamService } from './exam.service';
@@ -19,18 +18,14 @@ import { UpdateExamDto } from './dto/update-exam.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
-import { Cache, CacheEvict } from 'src/common/decorators/cache.decorator';
-import { CacheInterceptor } from 'src/common/interceptors/cache.interceptor';
 
 @Controller('exam')
-@UseInterceptors(CacheInterceptor)
 export class ExamController {
   constructor(private readonly examService: ExamService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('exam:create')
-  @CacheEvict(['exam:*'])
   async createExam(@Body() createExamDto: CreateExamDto) {
     return await this.examService.createExam(createExamDto);
   }
@@ -38,7 +33,6 @@ export class ExamController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('exam:update')
-  @CacheEvict(['exam:*'])
   async updateExam(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateExamDto: UpdateExamDto,
@@ -49,7 +43,6 @@ export class ExamController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('exam:delete')
-  @CacheEvict(['exam:*'])
   async deleteExam(@Param('id', ParseIntPipe) id: number) {
     await this.examService.deleteExam(id);
     return { message: 'Xoá đề thi thành công' };
@@ -75,28 +68,24 @@ export class ExamController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'exam:id:{id}', ttl: 600 })
   async getExamById(@Param('id', ParseIntPipe) id: number) {
     return await this.examService.getExamById(id);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'exam:list', ttl: 300 })
   async getAllExams() {
     return await this.examService.getAllExams();
   }
 
   @Get(':id/questions')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'exam:questions:{id}', ttl: 900 })
   async getQuestionsOfExam(@Param('id', ParseIntPipe) id: number) {
     return await this.examService.getQuestionsOfExam(id);
   }
 
   @Get('subject/:subjectId')
   @UseGuards(JwtAuthGuard)
-  @Cache({ key: 'exam:subject:{subjectId}', ttl: 300 })
   async getExamsBySubject(@Param('subjectId') subjectId: string) {
     return await this.examService.getExamsBySubject(+subjectId);
   }

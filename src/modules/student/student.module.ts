@@ -5,9 +5,10 @@ import { Students } from 'src/database/entities/Students';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudentRepository } from './student.repository';
 import { Classes } from 'src/database/entities/Classes';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Students, Classes])],
+  imports: [TypeOrmModule.forFeature([Students, Classes]), RedisModule],
   controllers: [StudentController],
   providers: [StudentService, StudentRepository],
   exports: [StudentService],
