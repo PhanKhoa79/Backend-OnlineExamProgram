@@ -15,4 +15,12 @@ export class WebsocketService {
       notification,
     );
   }
+
+  sendActivityLogToAdmins(activityLog: any) {
+    return this.websocketGateway.sendActivityLogToAdmins(activityLog);
+  }
+
+  sendActivityLogToUsers(userIds: number[], activityLog: any) {
+    return this.websocketGateway.sendActivityLogToUsers(userIds, activityLog);
+  }
 }

@@ -11,14 +11,18 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import { ExamScheduleAssignmentService } from './exam-schedule-assignment.service';
-import { CreateExamScheduleAssignmentDto } from './dto/create-assignment.dto';
+import {
+  CreateExamScheduleAssignmentDto,
+  BulkCreateExamScheduleAssignmentDto,
+} from './dto/create-assignment.dto';
 import { UpdateExamScheduleAssignmentDto } from './dto/update-assignment.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../../modules/auth/decorator/permissions.decotator';
+import { ExamScheduleAssignments } from 'src/database/entities/ExamScheduleAssignments';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
 @Controller('exam-schedule-assignments')
 export class ExamScheduleAssignmentController {
@@ -30,6 +34,7 @@ export class ExamScheduleAssignmentController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:create')
+  @ActivityLog({ action: 'CREATE', module: 'exam-schedule-assignment' })
   create(@Body() createDto: CreateExamScheduleAssignmentDto) {
     return this.assignmentService.create(createDto);
   }
@@ -57,6 +62,13 @@ export class ExamScheduleAssignmentController {
     return this.assignmentService.findAll();
   }
 
+  @Get('system-status')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('room:view')
+  getSystemStatus() {
+    return this.assignmentService.getSystemStatus();
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:view')
@@ -67,20 +79,30 @@ export class ExamScheduleAssignmentController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:update')
+  @ActivityLog({ action: 'UPDATE', module: 'exam-schedule-assignment' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateExamScheduleAssignmentDto,
-  ) {
+  ): Promise<ExamScheduleAssignments> {
     return this.assignmentService.update(id, updateDto);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:delete')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @ActivityLog({ action: 'DELETE', module: 'exam-schedule-assignment' })
+  @HttpCode(HttpStatus.OK)
   async remove(@Param('id', ParseIntPipe) id: number) {
+    // Lấy thông tin phòng thi trước khi xóa
+    const assignment = await this.assignmentService.findOne(id);
+    
+    // Thực hiện xóa
     await this.assignmentService.remove(id);
-    return { message: 'Phòng thi đã được xóa thành công' };
+    
+    return { 
+      message: 'Phòng thi đã được xóa thành công',
+      data: assignment // Trả về thông tin phòng thi đã xóa
+    };
   }
 
   @Patch(':id/status')
@@ -97,32 +119,17 @@ export class ExamScheduleAssignmentController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:create')
   @HttpCode(HttpStatus.CREATED)
-  bulkCreate(
-    @Body()
-    createDto: {
-      examScheduleId: number;
-      examId: number;
-      classIds: number[];
-      randomizeOrder?: boolean;
-      description?: string;
-    },
-  ) {
+  bulkCreate(@Body() createDto: BulkCreateExamScheduleAssignmentDto) {
     return this.assignmentService.bulkCreate(
       createDto.examScheduleId,
-      createDto.examId,
+      createDto.examIds, // 🔥 THAY ĐỔI: Từ examId thành examIds
       createDto.classIds,
       {
         randomizeOrder: createDto.randomizeOrder,
         description: createDto.description,
+        maxParticipants: createDto.maxParticipants,
       },
     );
-  }
-
-  @Get('system-status')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('room:view')
-  getSystemStatus() {
-    return this.assignmentService.getSystemStatus();
   }
 
   @Post('manual-sync')
@@ -141,5 +148,19 @@ export class ExamScheduleAssignmentController {
       timestamp: new Date().toLocaleString('vi-VN'),
       systemStatus: status,
     };
+  }
+
+  @Post(':id/demo-randomization')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('room:view')
+  @HttpCode(HttpStatus.OK)
+  async demonstrateRandomization(
+    @Param('id', ParseIntPipe) assignmentId: number,
+    @Body('studentIds') studentIds: number[],
+  ) {
+    return await this.assignmentService.demonstrateRandomization(
+      assignmentId,
+      studentIds,
+    );
   }
 }

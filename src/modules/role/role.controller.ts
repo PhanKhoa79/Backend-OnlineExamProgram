@@ -10,7 +10,7 @@ import {
   HttpStatus,
   Delete,
   Put,
-  UseInterceptors,
+  UseInterceptors
 } from '@nestjs/common';
 import { RoleService } from './role.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,6 +18,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
 import { CreateRoleDto } from './dto/createRole.dto';
 import { RoleWithPermissionsDto } from './dto/roleWithPermission.dto';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
 @Controller('role')
 export class RoleController {
@@ -58,6 +59,7 @@ export class RoleController {
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('role:create')
+  @ActivityLog({ action: 'CREATE', module: 'role' })
   async createRole(
     @Body() createRoleDto: CreateRoleDto,
   ): Promise<RoleWithPermissionsDto> {
@@ -73,6 +75,11 @@ export class RoleController {
   @Put(':id/permissions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('role:update')
+  @ActivityLog({
+    action: 'UPDATE',
+    module: 'role',
+    description: 'đã cập nhật quyền cho role',
+  })
   async updatePermissions(
     @Param('id', ParseIntPipe) roleId: number,
     @Body('permissions') permissions: string[],
@@ -87,10 +94,19 @@ export class RoleController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('role:delete')
+  @ActivityLog({ action: 'DELETE', module: 'role' })
   async deleteRole(@Param('id', ParseIntPipe) id: number) {
     try {
+      // Lấy thông tin role trước khi xóa
+      const role = await this.roleService.getPermissionsByRoleId(id);
+      
+      // Thực hiện xóa
       await this.roleService.deleteRoleById(id);
-      return { message: `Role with id ${id} deleted successfully.` };
+      
+      return { 
+        message: `Role with id ${id} deleted successfully.`,
+        data: role // Trả về thông tin role đã xóa
+      };
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }

@@ -14,7 +14,6 @@ import {
   UseInterceptors,
   HttpException,
   HttpStatus,
-  Inject,
 } from '@nestjs/common';
 import { StudentService } from './student.service';
 import { StudentDto } from './dto/student.dto';
@@ -25,6 +24,7 @@ import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 import {
   CreateBulkStudentDto,
   BulkCreateResult,
@@ -41,6 +41,7 @@ export class StudentController {
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('student:create')
+  @ActivityLog({ action: 'CREATE', module: 'student' })
   async create(@Body() dto: CreateStudentDto): Promise<StudentDto> {
     const entity = await this.studentService.create(dto);
     return StudentMapper.toResponseDto(entity);
@@ -65,6 +66,7 @@ export class StudentController {
   @Get('by-email')
   @UseGuards(JwtAuthGuard)
   async getStudentByEmail(@Query('email') email: string): Promise<StudentDto> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const student = await this.studentService.getStudentByEmail(email);
 
     if (!student) {
@@ -133,6 +135,7 @@ export class StudentController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('student:update')
+  @ActivityLog({ action: 'UPDATE', module: 'student' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateStudentDto,
@@ -144,11 +147,20 @@ export class StudentController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('student:delete')
+  @ActivityLog({ action: 'DELETE', module: 'student' })
   async delete(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; data?: any }> {
+    // Lấy thông tin sinh viên trước khi xóa
+    const student = await this.studentService.findById(id);
+    
+    // Thực hiện xóa
     await this.studentService.delete(id);
-    return { message: 'Xóa sinh viên thành công' };
+    
+    return { 
+      message: 'Xóa sinh viên thành công',
+      data: StudentMapper.toResponseDto(student) // Trả về thông tin sinh viên đã xóa
+    };
   }
 
   @Post('/import')

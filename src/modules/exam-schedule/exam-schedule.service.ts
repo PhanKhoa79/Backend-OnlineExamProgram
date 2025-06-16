@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ExamSchedule } from '../../database/entities/ExamSchedule';
@@ -129,7 +130,11 @@ export class ExamScheduleService {
         );
       }
 
-      if (examSchedule.status !== 'completed' && startTime < new Date()) {
+      if (
+        updateDto.startTime &&
+        examSchedule.status !== 'completed' &&
+        startTime < new Date()
+      ) {
         throw new BadRequestException('Thời gian bắt đầu không thể ở quá khứ');
       }
     }
@@ -164,6 +169,7 @@ export class ExamScheduleService {
     await this.examScheduleRepo.remove(examSchedule);
   }
 
+  @Cron(CronExpression.EVERY_MINUTE)
   async updateScheduleStatus(): Promise<void> {
     const now = new Date();
 
@@ -174,6 +180,10 @@ export class ExamScheduleService {
       .where('schedule.status = :status', { status: 'active' })
       .andWhere('schedule.endTime < :now', { now })
       .getMany();
+
+    if (expiredSchedules.length === 0) {
+      return; // Không có lịch thi nào cần cập nhật
+    }
 
     for (const schedule of expiredSchedules) {
       // Kiểm tra tất cả assignments đã closed chưa

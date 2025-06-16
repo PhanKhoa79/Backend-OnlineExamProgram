@@ -74,7 +74,8 @@ export class NotificationController {
   @HttpCode(HttpStatus.OK)
   async deleteAllNotifications(@Req() req: RequestWithUser) {
     const userId = req.user.userId;
-    const result = await this.notificationService.deleteAllNotifications(userId);
+    const result =
+      await this.notificationService.deleteAllNotifications(userId);
 
     return {
       message: `Đã xóa ${result.count} thông báo`,

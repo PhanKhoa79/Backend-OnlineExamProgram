@@ -18,6 +18,7 @@ import { UpdateExamScheduleDto } from './dto/update-exam-schedule.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../../modules/auth/decorator/permissions.decotator';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
 @Controller('exam-schedules')
 export class ExamScheduleController {
@@ -27,6 +28,7 @@ export class ExamScheduleController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:create')
+  @ActivityLog({ action: 'CREATE', module: 'schedule' })
   create(@Body() createDto: CreateExamScheduleDto) {
     return this.examScheduleService.create(createDto);
   }
@@ -63,6 +65,7 @@ export class ExamScheduleController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:update')
+  @ActivityLog({ action: 'UPDATE', module: 'schedule' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateExamScheduleDto,
@@ -73,10 +76,19 @@ export class ExamScheduleController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:delete')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @ActivityLog({ action: 'DELETE', module: 'schedule' })
+  @HttpCode(HttpStatus.OK)
   async remove(@Param('id', ParseIntPipe) id: number) {
+    // Lấy thông tin lịch thi trước khi xóa
+    const schedule = await this.examScheduleService.findOne(id);
+    
+    // Thực hiện xóa
     await this.examScheduleService.remove(id);
-    return { message: 'Lịch thi đã được xóa thành công' };
+    
+    return { 
+      message: 'Lịch thi đã được xóa thành công',
+      data: schedule // Trả về thông tin lịch thi đã xóa
+    };
   }
 
   @Post('update-status')
@@ -90,6 +102,11 @@ export class ExamScheduleController {
   @Post(':id/cancel')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:update')
+  @ActivityLog({
+    action: 'CANCEL',
+    module: 'schedule',
+    description: 'đã hủy lịch thi',
+  })
   @HttpCode(HttpStatus.OK)
   cancelSchedule(
     @Param('id', ParseIntPipe) id: number,

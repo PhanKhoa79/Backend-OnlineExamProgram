@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Exams } from 'src/database/entities/Exams';
 import { Questions } from 'src/database/entities/Questions';
+import { ExamScheduleAssignments } from 'src/database/entities/ExamScheduleAssignments';
 import { In, Repository } from 'typeorm';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
@@ -34,6 +35,9 @@ export class ExamService {
 
     @InjectRepository(Subjects)
     private subjectRepo: Repository<Subjects>,
+
+    @InjectRepository(ExamScheduleAssignments)
+    private examScheduleAssignmentRepo: Repository<ExamScheduleAssignments>,
 
     private readonly redisService: RedisService,
   ) {}
@@ -140,6 +144,24 @@ export class ExamService {
       throw new NotFoundException(`Exam with ID ${id} not found`);
     }
 
+    // 🔒 KIỂM TRA: Có phòng thi nào đang mở với đề thi này không
+    const openAssignments = await this.examScheduleAssignmentRepo.find({
+      where: {
+        exam: { id },
+        status: 'open',
+      },
+      relations: ['class', 'examSchedule'],
+    });
+
+    if (openAssignments.length > 0) {
+      const assignmentInfo = openAssignments
+        .map((a) => `${a.class?.name || 'N/A'} (${a.code})`)
+        .join(', ');
+      throw new BadRequestException(
+        `Không thể sửa đề thi khi có phòng thi đang mở: ${assignmentInfo}`,
+      );
+    }
+
     const { questionIds, totalQuestions, subjectId } = updateExamDto;
     const oldSubjectId = exam.subject?.id;
 
@@ -236,6 +258,24 @@ export class ExamService {
   }
 
   async deleteExam(id: number): Promise<void> {
+    // 🔒 KIỂM TRA: Có phòng thi nào đang mở với đề thi này không
+    const openAssignments = await this.examScheduleAssignmentRepo.find({
+      where: {
+        exam: { id },
+        status: 'open',
+      },
+      relations: ['class', 'examSchedule'],
+    });
+
+    if (openAssignments.length > 0) {
+      const assignmentInfo = openAssignments
+        .map((a) => `${a.class?.name || 'N/A'} (${a.code})`)
+        .join(', ');
+      throw new BadRequestException(
+        `Không thể xóa đề thi khi có phòng thi đang mở: ${assignmentInfo}`,
+      );
+    }
+
     const exam = await this.examRepo.findOne({
       where: { id },
       relations: ['subject'],
@@ -439,6 +479,86 @@ export class ExamService {
       if (!exam) throw new NotFoundException('Exam not found');
       return exam.questions;
     }
+  }
+
+  // 🔥 THÊM: Method mới để lấy câu hỏi với randomization cho student
+  async getQuestionsForStudent(
+    examId: number,
+    assignmentId: number,
+    studentId?: number, // 🔥 THÊM: studentId để tạo unique randomization cho mỗi học sinh
+  ): Promise<Questions[]> {
+    // Lấy thông tin assignment để check randomizeOrder flag
+    const assignment = await this.examScheduleAssignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: ['exam'],
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(
+        `Assignment with ID ${assignmentId} not found`,
+      );
+    }
+
+    if (assignment.exam.id !== examId) {
+      throw new BadRequestException(
+        `Exam ID ${examId} does not match assignment's exam ID ${assignment.exam.id}`,
+      );
+    }
+
+    // Lấy câu hỏi gốc
+    const questions = await this.getQuestionsOfExam(examId);
+
+    // 🎯 XỬ LÝ RANDOMIZATION
+    if (assignment.randomizeOrder) {
+      if (studentId) {
+        // 🔥 PER-STUDENT RANDOMIZATION: Mỗi học sinh có thứ tự riêng
+        const seed = this.generateStudentSeed(assignmentId, studentId);
+        return this.shuffleQuestionsWithSeed(questions, seed);
+      } else {
+        // 🔥 PER-ASSIGNMENT RANDOMIZATION: Cùng assignment, cùng thứ tự
+        const seed = this.generateSeed(assignmentId);
+        return this.shuffleQuestionsWithSeed(questions, seed);
+      }
+    }
+
+    return questions;
+  }
+
+  // 🔧 Helper method: Tạo seed từ assignmentId
+  private generateSeed(assignmentId: number): number {
+    // Sử dụng assignmentId làm seed cố định để đảm bảo cùng 1 assignment luôn có cùng thứ tự
+    // Không sử dụng Date.now() để tránh thay đổi theo thời gian
+    return assignmentId * 12345 + 67890; // Constant multiplier và offset
+  }
+
+  // 🔥 THÊM: Helper method để tạo seed riêng cho mỗi học sinh
+  private generateStudentSeed(assignmentId: number, studentId: number): number {
+    // Kết hợp assignmentId và studentId để tạo seed unique cho mỗi học sinh
+    // Sử dụng prime numbers để tránh collision
+    return (assignmentId * 31 + studentId * 37) * 1009 + 2017;
+  }
+
+  // 🔧 Helper method: Shuffle questions với seed cố định
+  private shuffleQuestionsWithSeed(
+    questions: Questions[],
+    seed: number,
+  ): Questions[] {
+    const shuffled = [...questions];
+
+    // Sử dụng Linear Congruential Generator với seed cố định
+    let currentSeed = seed;
+    const random = () => {
+      currentSeed = (currentSeed * 1664525 + 1013904223) % Math.pow(2, 32);
+      return currentSeed / Math.pow(2, 32);
+    };
+
+    // Fisher-Yates shuffle với random function có seed
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
   }
 
   async exportExamWithQuestions(

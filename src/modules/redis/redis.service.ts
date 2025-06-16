@@ -32,6 +32,16 @@ export class RedisService {
     }
   }
 
+  async setex(key: string, ttl: number, value: string): Promise<void> {
+    try {
+      await this.redis.setex(key, ttl, value);
+      this.logger.log(`Set key ${key} with TTL ${ttl}s`);
+    } catch (error) {
+      this.logger.error(`Error setting key ${key} with TTL: ${error.message}`);
+      throw error;
+    }
+  }
+
   async del(key: string): Promise<void> {
     try {
       await this.redis.del(key);

@@ -34,6 +34,7 @@ import { Response } from 'express';
 import { join } from 'path';
 import * as fs from 'fs';
 import { PermissionsGuard } from '../auth/permissions.guard';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
 @Controller('account')
 export class AccountController {
@@ -68,6 +69,7 @@ export class AccountController {
   @Post('/add/user')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
+  @ActivityLog({ action: 'CREATE', module: 'account' })
   async addAccount(@Body() body: CreateAccountDto) {
     try {
       const result = await this.accountService.addAccount(body);
@@ -80,6 +82,11 @@ export class AccountController {
   @Post('/add/users')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
+  @ActivityLog({
+    action: 'CREATE',
+    module: 'account',
+    description: 'đã tạo nhiều tài khoản',
+  })
   async addAccountStudents(@Body() body: CreateAccountDto[]) {
     try {
       const result = await this.accountService.addAccountsForStudents(body);
@@ -98,6 +105,7 @@ export class AccountController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:update')
+  @ActivityLog({ action: 'UPDATE', module: 'account' })
   async updateAccount(@Param('id') id: number, @Body() body: UpdateAccountDto) {
     try {
       const result = await this.accountService.updateAccount(Number(id), body);
@@ -113,10 +121,19 @@ export class AccountController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:delete')
+  @ActivityLog({ action: 'DELETE', module: 'account' })
   async deleteAccount(@Param('id') id: number) {
     try {
+      // Lấy thông tin tài khoản trước khi xóa
+      const account = await this.accountService.getAccountInfoById(Number(id));
+      
+      // Thực hiện xóa
       await this.accountService.deleteAccountById(Number(id));
-      return { message: 'Xóa tài khoản thành công' };
+      
+      return { 
+        message: 'Xóa tài khoản thành công',
+        data: account // Trả về thông tin tài khoản đã xóa
+      };
     } catch (error) {
       throw new HttpException(
         error.message,
@@ -128,6 +145,11 @@ export class AccountController {
   @Post('delete-many')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:delete')
+  @ActivityLog({
+    action: 'DELETE',
+    module: 'account',
+    description: 'đã xóa danh sách tài khoản',
+  })
   async deleteManyAccounts(@Body() body: DeleteAccountsDto) {
     try {
       await this.accountService.deleteAccountsByIds(body.ids);
@@ -142,6 +164,7 @@ export class AccountController {
 
   @Post('activate')
   @HttpCode(HttpStatus.OK)
+  @ActivityLog({ action: 'ACTIVATE', module: 'account', description: 'đã kích hoạt tài khoản' })
   async activate(
     @Body() dto: ActivateAccountDto,
   ): Promise<{ message: string }> {
@@ -156,6 +179,7 @@ export class AccountController {
   @Post('/import')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
+  @ActivityLog({ action: 'IMPORT', module: 'account', description: 'đã import tài khoản từ file' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -213,6 +237,7 @@ export class AccountController {
   @Post('/export')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:view')
+  @ActivityLog({ action: 'EXPORT', module: 'account', description: 'đã export danh sách tài khoản' })
   async exportAccounts(
     @Body() body: { accounts: AccountDto[] },
     @Query('format') format: 'excel' | 'csv',

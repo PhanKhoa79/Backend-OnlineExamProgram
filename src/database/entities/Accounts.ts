@@ -96,4 +96,5 @@ export class Accounts {
 
   @OneToMany(() => StudentExamSessions, (session) => session.student)
   studentExamSessions: StudentExamSessions[];
+  username: any;
 }

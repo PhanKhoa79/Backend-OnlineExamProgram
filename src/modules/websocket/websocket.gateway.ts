@@ -32,7 +32,7 @@ export class WebsocketGateway
 
   afterInit(server: Server) {
     this.logger.log('WebSocket Gateway initialized');
-    
+
     try {
       // Cấu hình Redis Adapter nếu cần
       // Bạn có thể bỏ comment phần này nếu muốn sử dụng Redis Adapter
@@ -80,7 +80,10 @@ export class WebsocketGateway
 
       if (!payload || !payload.userId) {
         this.logger.warn('Invalid registration payload received');
-        return { event: 'registered', data: { success: false, error: 'Invalid userId' } };
+        return {
+          event: 'registered',
+          data: { success: false, error: 'Invalid userId' },
+        };
       }
 
       const { userId } = payload;
@@ -145,6 +148,56 @@ export class WebsocketGateway
     } catch (error) {
       this.logger.error(
         `Error in sendNotificationToPermission: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
+
+  // Send activity log realtime to all admin users
+  sendActivityLogToAdmins(activityLog: any) {
+    try {
+      this.logger.log('Broadcasting new activity log to all admin users');
+      // Emit to all connected clients with admin permissions
+      this.server.emit('activity-log-new', {
+        event: 'new-activity',
+        data: activityLog,
+        timestamp: new Date().toISOString(),
+      });
+
+      this.logger.log('Activity log broadcast completed');
+    } catch (error) {
+      this.logger.error(
+        `Error in sendActivityLogToAdmins: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
+
+  // Send activity log to specific users
+  sendActivityLogToUsers(userIds: number[], activityLog: any) {
+    try {
+      this.logger.log(`Sending activity log to users: ${userIds.join(', ')}`);
+
+      for (const userId of userIds) {
+        const userSockets = this.userSocketMap.get(userId);
+        if (userSockets && userSockets.length > 0) {
+          this.logger.log(
+            `Found ${userSockets.length} sockets for user ${userId}`,
+          );
+          userSockets.forEach((socketId) => {
+            this.server.to(socketId).emit('activity-log-new', {
+              event: 'new-activity',
+              data: activityLog,
+              timestamp: new Date().toISOString(),
+            });
+          });
+        } else {
+          this.logger.log(`No active sockets found for user ${userId}`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error in sendActivityLogToUsers: ${(error as Error).message}`,
         (error as Error).stack,
       );
     }

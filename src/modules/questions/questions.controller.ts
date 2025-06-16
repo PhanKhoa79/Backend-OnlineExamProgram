@@ -30,6 +30,7 @@ import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { Response } from 'express';
 import * as fs from 'fs';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
 @Controller('questions')
 export class QuestionsController {
@@ -38,6 +39,7 @@ export class QuestionsController {
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:create')
+  @ActivityLog({ action: 'CREATE', module: 'question' })
   async create(@Body() dto: CreateQuestionDto): Promise<QuestionDto> {
     return this.questionsService.create(dto);
   }
@@ -45,6 +47,7 @@ export class QuestionsController {
   @Post('bulk')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:create')
+  @ActivityLog({ action: 'CREATE', module: 'question', description: 'đã tạo nhiều câu hỏi' })
   async createMany(@Body() dto: CreateManyQuestionDto): Promise<QuestionDto[]> {
     return this.questionsService.createMany(dto.questions);
   }
@@ -52,6 +55,7 @@ export class QuestionsController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:update')
+  @ActivityLog({ action: 'UPDATE', module: 'question' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateQuestionDto,
@@ -62,9 +66,18 @@ export class QuestionsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:delete')
+  @ActivityLog({ action: 'DELETE', module: 'question' })
   async delete(@Param('id', ParseIntPipe) id: number) {
+    // Lấy thông tin câu hỏi trước khi xóa
+    const question = await this.questionsService.findById(id);
+    
+    // Thực hiện xóa
     await this.questionsService.delete(id);
-    return { message: 'Xóa câu hỏi thành công' };
+    
+    return { 
+      message: 'Xóa câu hỏi thành công',
+      data: question // Trả về thông tin câu hỏi đã xóa
+    };
   }
 
   @Get('/download-template')
@@ -138,6 +151,11 @@ export class QuestionsController {
   @Post('batch-delete')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:delete')
+  @ActivityLog({
+    action: 'DELETE',
+    module: 'question',
+    description: 'đã xóa nhiều câu hỏi',
+  })
   async deleteMany(@Body() body: { ids: number[] }) {
     await this.questionsService.deleteMany(body.ids);
     return { message: 'Xóa danh sách câu hỏi thành công' };
@@ -146,6 +164,11 @@ export class QuestionsController {
   @Post('import')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:create')
+  @ActivityLog({
+    action: 'IMPORT',
+    module: 'question',
+    description: 'đã import câu hỏi từ file',
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({

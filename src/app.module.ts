@@ -28,6 +28,9 @@ import { AuthMiddleware } from './modules/auth/auth.middleware';
 import { RedisModule } from './modules/redis/redis.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { ActivityLogModule } from './modules/activity-log/activity-log.module';
+import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 const modules = [
   AuthModule,
@@ -47,6 +50,7 @@ const modules = [
   RedisModule,
   WebsocketModule,
   NotificationModule,
+  ActivityLogModule,
 ];
 
 @Module({
@@ -76,7 +80,13 @@ const modules = [
     }),
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ActivityLogInterceptor,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

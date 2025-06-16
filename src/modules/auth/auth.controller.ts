@@ -25,6 +25,7 @@ import { ResendActivationDto } from './dto/resend-activation.dto';
 import { PermissionsGuard } from './permissions.guard';
 import { Permissions } from './decorator/permissions.decotator';
 import { NotificationService } from '../notification/notification.service';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -35,6 +36,11 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  @ActivityLog({
+    action: 'LOGIN',
+    module: 'auth',
+    description: 'đã đăng nhập hệ thống',
+  })
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -96,6 +102,11 @@ export class AuthController {
   }
 
   @Post('/logout')
+  @ActivityLog({
+    action: 'LOGOUT',
+    module: 'auth',
+    description: 'đã đăng xuất khỏi hệ thống',
+  })
   async logout(@Req() req: Request, @Res() res: Response) {
     const accessToken = req.cookies?.accessToken;
     const refreshToken = req.cookies?.refreshToken;
@@ -114,6 +125,11 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(200)
+  @ActivityLog({
+    action: 'FORGOT_PASSWORD',
+    module: 'auth',
+    description: 'đã yêu cầu đặt lại mật khẩu',
+  })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto);
     return { message: 'Sent email successfully' };
@@ -121,6 +137,11 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(200)
+  @ActivityLog({
+    action: 'RESET_PASSWORD',
+    module: 'auth',
+    description: 'đã đặt lại mật khẩu',
+  })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto);
     return { message: 'Đổi mật khẩu thành công' };
@@ -128,6 +149,11 @@ export class AuthController {
 
   @Post('verify-reset-code')
   @HttpCode(200)
+  @ActivityLog({
+    action: 'VERIFY_RESET_CODE',
+    module: 'auth',
+    description: 'đã xác minh mã đặt lại mật khẩu',
+  })
   async verifyResetCode(@Body() body: { code: string }) {
     await this.authService.verifyResetCode(body.code);
     return { message: 'Mã hợp lệ' };
@@ -146,6 +172,11 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
+  @ActivityLog({
+    action: 'CHANGE_PASSWORD',
+    module: 'auth',
+    description: 'đã đổi mật khẩu',
+  })
   async changePassword(@Body() dto: ChangePasswordDto, @Req() req: Request) {
     const accountId = (req as any).user?.userId;
     if (!accountId) throw new UnauthorizedException();
@@ -166,12 +197,22 @@ export class AuthController {
   @Post('resend-activation')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
+  @ActivityLog({
+    action: 'RESEND_ACTIVATION',
+    module: 'auth',
+    description: 'đã gửi lại link kích hoạt tài khoản',
+  })
   @HttpCode(HttpStatus.OK)
   async resendActivationLink(@Body() dto: ResendActivationDto) {
     return await this.authService.resendActivationLink(dto.email);
   }
 
   @Post('request-activation')
+  @ActivityLog({
+    action: 'REQUEST_ACTIVATION',
+    module: 'auth',
+    description: 'đã gửi yêu cầu kích hoạt tài khoản',
+  })
   @HttpCode(HttpStatus.OK)
   async requestActivation(@Body() dto: ResendActivationDto) {
     await this.notificationService.createActivationRequestNotification(

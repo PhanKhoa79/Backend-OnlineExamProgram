@@ -8,7 +8,6 @@ import {
   Body,
   ParseIntPipe,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
 import { SubjectService } from './subject.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
@@ -18,9 +17,8 @@ import { SubjectMapper } from './mapper/subject.mapper';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
 import { PermissionsGuard } from '../auth/permissions.guard';
-import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
+import { ActivityLog } from '../../common/decorators/activity-log.decorator';
 
-@UseInterceptors(CacheInterceptor)
 @Controller('subject')
 export class SubjectController {
   constructor(private readonly subjectService: SubjectService) {}
@@ -28,6 +26,7 @@ export class SubjectController {
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:create')
+  @ActivityLog({ action: 'CREATE', module: 'subject' })
   async create(
     @Body() createDto: CreateSubjectDto,
   ): Promise<SubjectResponseDto> {
@@ -38,6 +37,7 @@ export class SubjectController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:update')
+  @ActivityLog({ action: 'UPDATE', module: 'subject' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateSubjectDto,
@@ -49,11 +49,20 @@ export class SubjectController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('subject:delete')
+  @ActivityLog({ action: 'DELETE', module: 'subject' })
   async delete(
     @Param('id', ParseIntPipe) id: number,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; data?: any }> {
+    // Lấy thông tin môn học trước khi xóa
+    const subject = await this.subjectService.findById(id);
+    
+    // Thực hiện xóa
     await this.subjectService.delete(id);
-    return { message: 'Xóa môn học thành công' };
+    
+    return { 
+      message: 'Xóa môn học thành công',
+      data: subject // Trả về thông tin môn học đã xóa
+    };
   }
 
   @Get(':code')
@@ -71,7 +80,6 @@ export class SubjectController {
     return await this.subjectService.findById(id);
   }
 
-  @CacheTTL(60 * 1000)
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(): Promise<SubjectResponseDto[]> {

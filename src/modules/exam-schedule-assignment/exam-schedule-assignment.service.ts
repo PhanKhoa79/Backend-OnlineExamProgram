@@ -44,6 +44,12 @@ export class ExamScheduleAssignmentService {
 
     const assignment = this.assignmentRepo.create({
       ...createDto,
+      code: this.generateRoomCode(
+        createDto.examScheduleId,
+        createDto.examId,
+        createDto.classId,
+      ),
+      maxParticipants: createDto.maxParticipants || 30, // Default 30 nếu không được cung cấp
       exam: { id: createDto.examId },
       examSchedule: { id: createDto.examScheduleId },
       class: { id: createDto.classId },
@@ -78,10 +84,20 @@ export class ExamScheduleAssignmentService {
   ): Promise<ExamScheduleAssignments> {
     const assignment = await this.findOne(id);
 
-    // Kiểm tra nếu đang có học sinh thi thì không cho sửa exam
-    if (updateDto.examId && assignment.status === 'open') {
+    // 🔒 HOÀN TOÀN CẤM UPDATE KHI PHÒNG THI ĐANG MỞ
+    if (assignment.status === 'open') {
       throw new BadRequestException(
-        'Không thể thay đổi đề thi khi phòng thi đang mở',
+        'Không thể cập nhật phòng thi khi đang có học sinh thi. Vui lòng đóng phòng thi trước khi chỉnh sửa.',
+      );
+    }
+
+    // Kiểm tra maxParticipants không được nhỏ hơn currentParticipants
+    if (
+      updateDto.maxParticipants &&
+      updateDto.maxParticipants < assignment.currentParticipants
+    ) {
+      throw new BadRequestException(
+        `Không thể giảm số người tối đa xuống ${updateDto.maxParticipants} khi hiện có ${assignment.currentParticipants} người đang thi`,
       );
     }
 
@@ -141,7 +157,7 @@ export class ExamScheduleAssignmentService {
       .set({ status: 'open' })
       .where('status = :status', { status: 'waiting' })
       .andWhere(
-        'exam_schedule_id IN (SELECT id FROM exam_schedule WHERE startTime <= :now AND status = :scheduleStatus)',
+        'exam_schedule_id IN (SELECT id FROM exam_schedule WHERE start_time <= :now AND status = :scheduleStatus)',
         { now, scheduleStatus: 'active' },
       )
       .execute();
@@ -155,11 +171,16 @@ export class ExamScheduleAssignmentService {
   async closeRooms(): Promise<void> {
     const now = new Date();
 
+    // 🔥 THAY ĐỔI: Kiểm tra dựa trên startTime + duration thay vì endTime
     const scheduleNeedClosing = await this.assignmentRepo
       .createQueryBuilder('assignment')
       .leftJoin('assignment.examSchedule', 'schedule')
+      .leftJoin('assignment.exam', 'exam')
       .where('assignment.status = :status', { status: 'open' })
-      .andWhere('schedule.endTime <= :now', { now })
+      .andWhere(
+        "schedule.start_time + COALESCE(exam.duration, 60) * INTERVAL '1 minute' <= :now",
+        { now },
+      )
       .getCount();
 
     if (scheduleNeedClosing === 0) {
@@ -171,14 +192,29 @@ export class ExamScheduleAssignmentService {
       where: { status: 'open' },
     });
 
+    // 🔥 THAY ĐỔI: Lấy assignments hết hạn dựa trên duration
     const expiredAssignments = await this.assignmentRepo
       .createQueryBuilder('assignment')
       .leftJoinAndSelect('assignment.examSchedule', 'schedule')
+      .leftJoinAndSelect('assignment.exam', 'exam')
       .where('assignment.status = :status', { status: 'open' })
-      .andWhere('schedule.endTime <= :now', { now })
+      .andWhere(
+        "schedule.start_time + COALESCE(exam.duration, 60) * INTERVAL '1 minute' <= :now",
+        { now },
+      )
       .getMany();
 
     for (const assignment of expiredAssignments) {
+      // Tính thời gian kết thúc thực tế
+      const examEndTime = new Date(assignment.examSchedule.startTime);
+      examEndTime.setMinutes(
+        examEndTime.getMinutes() + (assignment.exam.duration || 60),
+      );
+
+      console.log(
+        `⏰ Closing room ${assignment.code}: Started at ${assignment.examSchedule.startTime.toLocaleString('vi-VN')}, Duration: ${assignment.exam.duration}min, Should end at: ${examEndTime.toLocaleString('vi-VN')}`,
+      );
+
       this.autoSubmitStudentExams(assignment.id);
 
       assignment.status = 'closed';
@@ -186,7 +222,7 @@ export class ExamScheduleAssignmentService {
     }
 
     console.log(
-      `🔒 EXAM CLOSED: ${expiredAssignments.length}/${openCount} rooms closed at ${now.toLocaleString('vi-VN')}`,
+      `🔒 EXAM CLOSED: ${expiredAssignments.length}/${openCount} rooms closed at ${now.toLocaleString('vi-VN')} (based on exam duration)`,
     );
 
     if (expiredAssignments.length > 0) {
@@ -255,8 +291,17 @@ export class ExamScheduleAssignmentService {
       if (assignment.examSchedule.startTime > now) {
         throw new BadRequestException('Chưa đến giờ thi');
       }
-      if (assignment.examSchedule.endTime < now) {
-        throw new BadRequestException('Đã hết giờ thi');
+
+      // 🔥 THAY ĐỔI: Kiểm tra dựa trên duration thay vì endTime
+      const examEndTime = new Date(assignment.examSchedule.startTime);
+      examEndTime.setMinutes(
+        examEndTime.getMinutes() + (assignment.exam.duration || 60),
+      );
+
+      if (examEndTime < now) {
+        throw new BadRequestException(
+          `Đã hết giờ thi (kết thúc lúc ${examEndTime.toLocaleString('vi-VN')})`,
+        );
       }
     }
 
@@ -281,14 +326,34 @@ export class ExamScheduleAssignmentService {
     console.log(`Auto submitting exams for assignment ${assignmentId}`);
   }
 
-  // Bulk create assignments for multiple classes
+  // Bulk create assignments for multiple classes with random exam distribution
   async bulkCreate(
     examScheduleId: number,
-    examId: number,
+    examIds: number[], // Danh sách đề thi (phải <= số lớp)
     classIds: number[],
-    options?: { randomizeOrder?: boolean; description?: string },
+    options?: {
+      randomizeOrder?: boolean;
+      description?: string;
+      maxParticipants?: number;
+    },
   ): Promise<ExamScheduleAssignments[]> {
-    // 🔥 THÊM: Validate parent schedule status
+    // Validate đầu vào
+    if (examIds.length === 0) {
+      throw new BadRequestException('Phải có ít nhất 1 đề thi');
+    }
+
+    if (classIds.length === 0) {
+      throw new BadRequestException('Phải có ít nhất 1 lớp học');
+    }
+
+    // 🔥 THÊM: Validate số lượng đề thi không được nhiều hơn số lớp
+    if (examIds.length > classIds.length) {
+      throw new BadRequestException(
+        `Số lượng đề thi (${examIds.length}) không được nhiều hơn số lượng lớp (${classIds.length}). Một số đề thi sẽ không được sử dụng.`,
+      );
+    }
+
+    // Validate parent schedule status
     const schedule = await this.examScheduleService.findOne(examScheduleId);
 
     if (schedule.status !== 'active') {
@@ -305,12 +370,23 @@ export class ExamScheduleAssignmentService {
       );
     }
 
+    // 🔥 THAY ĐỔI: Tạo danh sách đề thi cho từng lớp bằng cách random
+    const assignedExamIds = this.distributeExamsToClasses(
+      examIds,
+      classIds.length,
+    );
+
     const assignments = classIds.map((classId, index) =>
       this.assignmentRepo.create({
-        code: `${examScheduleId}-${examId}-${classId}-${Date.now()}-${index}`,
+        code: this.generateRoomCode(
+          examScheduleId,
+          assignedExamIds[index],
+          classId,
+        ),
         randomizeOrder: options?.randomizeOrder || false,
         description: options?.description,
-        exam: { id: examId },
+        maxParticipants: options?.maxParticipants || 30, // Default 30
+        exam: { id: assignedExamIds[index] },
         examSchedule: { id: examScheduleId },
         class: { id: classId },
       }),
@@ -319,9 +395,30 @@ export class ExamScheduleAssignmentService {
     return await this.assignmentRepo.save(assignments);
   }
 
+  // 🔧 Helper method: Phân phối đề thi cho các lớp
+  private distributeExamsToClasses(
+    examIds: number[],
+    classCount: number,
+  ): number[] {
+    const result: number[] = [];
+
+    // Shuffle danh sách đề thi để tăng tính ngẫu nhiên
+    const shuffledExamIds = [...examIds].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < classCount; i++) {
+      // Sử dụng modulo để lặp lại danh sách đề thi nếu cần
+      const examIndex = i % shuffledExamIds.length;
+      result.push(shuffledExamIds[examIndex]);
+    }
+
+    // Shuffle lại kết quả để tránh pattern có thể đoán được
+    return result.sort(() => Math.random() - 0.5);
+  }
+
   // 📊 Kiểm tra trạng thái tổng quan của hệ thống
   async getSystemStatus(): Promise<{
     schedulesToday: number;
+    totalRooms: number;
     waitingRooms: number;
     openRooms: number;
     closedRooms: number;
@@ -341,7 +438,10 @@ export class ExamScheduleAssignmentService {
       .andWhere('schedule.status = :status', { status: 'active' })
       .getCount();
 
-    // Phòng thi theo trạng thái
+    // Tổng số phòng thi (tất cả thời gian)
+    const totalRooms = await this.assignmentRepo.count();
+
+    // Phòng thi theo trạng thái (tất cả thời gian)
     const waitingRooms = await this.assignmentRepo.count({
       where: { status: 'waiting' },
     });
@@ -364,10 +464,11 @@ export class ExamScheduleAssignmentService {
       .orderBy('schedule.start_time', 'ASC')
       .select('schedule.start_time', 'startTime')
       .addSelect('schedule.end_time', 'endTime')
-      .getRawOne();
+      .getRawOne<{ startTime: Date; endTime: Date }>();
 
     return {
       schedulesToday,
+      totalRooms,
       waitingRooms,
       openRooms,
       closedRooms,
@@ -395,5 +496,99 @@ export class ExamScheduleAssignmentService {
     console.log(
       `📊 System Status: ${status.waitingRooms} waiting | ${status.openRooms} open | ${status.closedRooms} closed`,
     );
+  }
+
+  // 🔥 THÊM: Method để demo randomization cho nhiều học sinh
+  async demonstrateRandomization(
+    assignmentId: number,
+    studentIds: number[],
+  ): Promise<{
+    assignmentId: number;
+    randomizeOrder: boolean;
+    studentsRandomization: Array<{
+      studentId: number;
+      questionOrder: number[];
+      firstThreeQuestions: string[];
+    }>;
+  }> {
+    const assignment = await this.findOne(assignmentId);
+
+    if (!assignment.randomizeOrder) {
+      throw new BadRequestException(
+        'Assignment không có randomizeOrder enabled. Không thể demo randomization.',
+      );
+    }
+
+    const studentsRandomization: Array<{
+      studentId: number;
+      questionOrder: number[];
+      firstThreeQuestions: string[];
+    }> = [];
+
+    for (const studentId of studentIds) {
+      try {
+        // Tạo seed riêng cho mỗi học sinh
+        const seed = this.generateStudentSeed(assignmentId, studentId);
+
+        // Giả lập danh sách câu hỏi (1-20)
+        const mockQuestions = Array.from({ length: 20 }, (_, i) => ({
+          id: i + 1,
+          questionText: `Câu hỏi số ${i + 1}`,
+        }));
+
+        // Shuffle với seed riêng
+        const shuffledQuestions = this.shuffleWithSeed(mockQuestions, seed);
+
+        studentsRandomization.push({
+          studentId,
+          questionOrder: shuffledQuestions.map((q) => q.id),
+          firstThreeQuestions: shuffledQuestions
+            .slice(0, 3)
+            .map((q) => q.questionText),
+        });
+      } catch (error) {
+        console.error(`Error processing student ${studentId}:`, error);
+      }
+    }
+
+    return {
+      assignmentId,
+      randomizeOrder: assignment.randomizeOrder,
+      studentsRandomization,
+    };
+  }
+
+  // 🔧 Helper method: Tạo seed cho học sinh (copy từ ExamService)
+  private generateStudentSeed(assignmentId: number, studentId: number): number {
+    return (assignmentId * 31 + studentId * 37) * 1009 + 2017;
+  }
+
+  // 🔧 Helper method: Shuffle với seed (simplified version)
+  private shuffleWithSeed<T>(array: T[], seed: number): T[] {
+    const shuffled = [...array];
+
+    let currentSeed = seed;
+    const random = () => {
+      currentSeed = (currentSeed * 1664525 + 1013904223) % Math.pow(2, 32);
+      return currentSeed / Math.pow(2, 32);
+    };
+
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    return shuffled;
+  }
+
+  // 🔧 Helper method: Tạo room code chuyên nghiệp
+  private generateRoomCode(
+    scheduleId: number,
+    examId: number,
+    classId: number,
+  ): string {
+    const timestamp = Date.now().toString(36).toUpperCase(); // Base36 ngắn hơn
+    const hash = (scheduleId * 31 + examId * 37 + classId * 41) % 10000; // Hash ngắn
+    return `R${scheduleId}E${examId}C${classId}-${timestamp}${hash}`;
   }
 }
