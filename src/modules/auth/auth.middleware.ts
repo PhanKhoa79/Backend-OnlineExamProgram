@@ -22,13 +22,37 @@ export class AuthMiddleware implements NestMiddleware {
       await this.authService.verifyRefreshToken(refreshToken);
       return next();
     } catch (error: any) {
-      if (error.name === 'TokenExpiredError') {
-        const decoded: any = jwt.decode(accessToken);
-        if (decoded?.exp) {
-          const expiredAt = new Date(decoded.exp * 1000);
-          await this.authService.blacklistAccessToken(accessToken, expiredAt);
+      if (error.name === 'TokenExpiredError' && refreshToken) {
+        try {
+          // Tự động làm mới access token khi nó hết hạn
+          const decoded: any = jwt.decode(accessToken);
+          if (decoded?.exp) {
+            const expiredAt = new Date(decoded.exp * 1000);
+            await this.authService.blacklistAccessToken(accessToken, expiredAt);
+          }
+
+          // Tạo access token mới từ refresh token
+          const account =
+            await this.authService.verifyRefreshToken(refreshToken);
+          const newAccessToken = this.authService.generateAccessToken(account);
+
+          // Đặt cookie mới
+          res.cookie('accessToken', newAccessToken, {
+            path: '/',
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 15 * 60 * 1000,
+          });
+
+          // Thay thế token trong request để request hiện tại có thể tiếp tục
+          req.cookies.accessToken = newAccessToken;
+
+          return next();
+        } catch (refreshError) {
+          // Nếu không thể làm mới token, trả về lỗi 401
+          return res.status(401).json({ message: 'Unable to refresh token' });
         }
-        return res.status(401).json({ message: 'Token expired' });
       }
 
       return res.status(401).json({ message: 'Invalid token' });

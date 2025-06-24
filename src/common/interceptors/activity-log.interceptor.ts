@@ -34,12 +34,9 @@ export class ActivityLogInterceptor implements NestInterceptor {
       context.getHandler(),
     );
 
-    if (!logData) {
+    if (!logData || !user) {
       return next.handle();
     }
-
-    // Đối với các route công khai (không có user), sử dụng accountId = null
-    const accountId = user?.userId || null;
 
     // Lưu thông tin trước khi thực thi (cho DELETE/UPDATE)
     const preExecutionData = this.extractPreExecutionData(request, logData);
@@ -47,23 +44,25 @@ export class ActivityLogInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(async (response) => {
         try {
-                      // Chỉ log nếu response thành công
-            if (response && response.success !== false) {
-              let targetName = logData.targetName;
-              let targetId: number | undefined;
+          // Chỉ log nếu response thành công
+          if (response && response.success !== false) {
+            let targetName = logData.targetName;
+            let targetId: number | undefined;
 
-              // Ưu tiên sử dụng dữ liệu từ pre-execution (cho DELETE/UPDATE)
-              if (preExecutionData.targetName) {
-                targetName = preExecutionData.targetName;
-                targetId = preExecutionData.targetId;
-              } else if (response.data) {
-                // Lấy targetId từ response
-                if (response.data.id) {
-                  targetId = response.data.id;
-                }
-                // Thử lấy tên từ response
-                targetName = this.extractTargetName(response.data, logData.module) || targetName;
+            // Ưu tiên sử dụng dữ liệu từ pre-execution (cho DELETE/UPDATE)
+            if (preExecutionData.targetName) {
+              targetName = preExecutionData.targetName;
+              targetId = preExecutionData.targetId;
+            } else if (response.data) {
+              // Lấy targetId từ response
+              if (response.data.id) {
+                targetId = response.data.id;
               }
+              // Thử lấy tên từ response
+              targetName =
+                this.extractTargetName(response.data, logData.module) ||
+                targetName;
+            }
 
             // Tạo description tự động nếu không có
             const description =
@@ -158,9 +157,12 @@ export class ActivityLogInterceptor implements NestInterceptor {
    * @param logData Activity log data
    * @returns Pre-execution data
    */
-  private extractPreExecutionData(request: any, logData: ActivityLogData): { targetName?: string; targetId?: number } {
+  private extractPreExecutionData(
+    request: any,
+    logData: ActivityLogData,
+  ): { targetName?: string; targetId?: number } {
     const method = request.method;
-    
+
     // Chỉ xử lý cho DELETE và UPDATE (PUT/PATCH)
     if (!['DELETE', 'PUT', 'PATCH'].includes(method)) {
       return {};
@@ -168,7 +170,7 @@ export class ActivityLogInterceptor implements NestInterceptor {
 
     // Lấy ID từ route params
     const targetId = request.params?.id ? Number(request.params.id) : undefined;
-    
+
     // Với UPDATE, có thể lấy tên từ request body
     if (['PUT', 'PATCH'].includes(method) && request.body) {
       const targetName = this.extractTargetName(request.body, logData.module);

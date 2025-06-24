@@ -2,14 +2,18 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ExamSchedule } from '../../database/entities/ExamSchedule';
 import { ExamScheduleAssignments } from '../../database/entities/ExamScheduleAssignments';
+import { Classes } from '../../database/entities/Classes';
 import { CreateExamScheduleDto } from './dto/create-exam-schedule.dto';
 import { UpdateExamScheduleDto } from './dto/update-exam-schedule.dto';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class ExamScheduleService {
@@ -18,6 +22,10 @@ export class ExamScheduleService {
     private readonly examScheduleRepo: Repository<ExamSchedule>,
     @InjectRepository(ExamScheduleAssignments)
     private readonly examScheduleAssignmentRepo: Repository<ExamScheduleAssignments>,
+    @InjectRepository(Classes)
+    private readonly classesRepo: Repository<Classes>,
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
   ) {}
 
   // 🔍 Helper method: Kiểm tra mã lịch thi đã tồn tại
@@ -54,6 +62,7 @@ export class ExamScheduleService {
       throw new BadRequestException('Thời gian bắt đầu không thể ở quá khứ');
     }
 
+    // Tạo lịch thi
     const examSchedule = this.examScheduleRepo.create({
       ...createDto,
       startTime,
@@ -61,12 +70,49 @@ export class ExamScheduleService {
       subject: { id: createDto.subjectId },
     });
 
-    return await this.examScheduleRepo.save(examSchedule);
+    // Lưu lịch thi
+    const savedExamSchedule = await this.examScheduleRepo.save(examSchedule);
+
+    // Nếu có danh sách lớp học, liên kết chúng với lịch thi
+    if (createDto.classIds && createDto.classIds.length > 0) {
+      // Kiểm tra các lớp học có tồn tại không
+      const classes = await this.classesRepo.find({
+        where: { id: In(createDto.classIds) },
+      });
+
+      if (classes.length !== createDto.classIds.length) {
+        throw new BadRequestException('Một số lớp học không tồn tại');
+      }
+
+      // Liên kết lớp học với lịch thi
+      savedExamSchedule.classes = classes;
+      await this.examScheduleRepo.save(savedExamSchedule);
+
+      // Lấy đầy đủ thông tin lịch thi bao gồm subject để gửi thông báo
+      const fullExamSchedule = await this.examScheduleRepo.findOne({
+        where: { id: savedExamSchedule.id },
+        relations: ['subject', 'classes'],
+      });
+
+      // Gửi thông báo đến sinh viên của các lớp học
+      try {
+        if (fullExamSchedule) {
+          await this.notificationService.createExamScheduleNotification(
+            fullExamSchedule,
+          );
+        }
+      } catch (error) {
+        console.error('Lỗi khi gửi thông báo lịch thi:', error);
+        // Không throw lỗi để không ảnh hưởng đến việc tạo lịch thi
+      }
+    }
+
+    return savedExamSchedule;
   }
 
   async findAll(): Promise<ExamSchedule[]> {
     return await this.examScheduleRepo.find({
-      relations: ['subject', 'examScheduleAssignments'],
+      relations: ['subject', 'examScheduleAssignments', 'classes'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -78,6 +124,7 @@ export class ExamScheduleService {
         'subject',
         'examScheduleAssignments',
         'examScheduleAssignments.class',
+        'classes',
       ],
     });
 
@@ -139,11 +186,51 @@ export class ExamScheduleService {
       }
     }
 
+    // Cập nhật thông tin cơ bản
     Object.assign(examSchedule, updateDto);
 
     if (updateDto.subjectId) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       examSchedule.subject = { id: updateDto.subjectId } as any;
+    }
+
+    // Cập nhật danh sách lớp học nếu có
+    if (updateDto.classIds) {
+      // Kiểm tra các lớp học có tồn tại không
+      const classes = await this.classesRepo.find({
+        where: { id: In(updateDto.classIds) },
+      });
+
+      if (classes.length !== updateDto.classIds.length) {
+        throw new BadRequestException('Một số lớp học không tồn tại');
+      }
+
+      // Cập nhật liên kết với lớp học
+      examSchedule.classes = classes;
+
+      // Lưu lịch thi
+      const updatedExamSchedule =
+        await this.examScheduleRepo.save(examSchedule);
+
+      // Lấy đầy đủ thông tin lịch thi bao gồm subject để gửi thông báo
+      const fullExamSchedule = await this.examScheduleRepo.findOne({
+        where: { id: updatedExamSchedule.id },
+        relations: ['subject', 'classes'],
+      });
+
+      // Gửi thông báo đến sinh viên của các lớp học
+      try {
+        if (fullExamSchedule) {
+          await this.notificationService.createExamScheduleNotification(
+            fullExamSchedule,
+          );
+        }
+      } catch (error) {
+        console.error('Lỗi khi gửi thông báo lịch thi:', error);
+        // Không throw lỗi để không ảnh hưởng đến việc cập nhật lịch thi
+      }
+
+      return updatedExamSchedule;
     }
 
     return await this.examScheduleRepo.save(examSchedule);
@@ -271,5 +358,35 @@ export class ExamScheduleService {
     );
 
     return await this.examScheduleRepo.save(examSchedule);
+  }
+
+  // Lấy lịch thi theo lớp học
+  async findByClassId(classId: number): Promise<ExamSchedule[]> {
+    // Sử dụng queryBuilder để tìm lịch thi liên kết với lớp học
+    const schedules = await this.examScheduleRepo
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.subject', 'subject')
+      .leftJoinAndSelect('schedule.classes', 'classes')
+      .where('classes.id = :classId', { classId })
+      .orderBy('schedule.startTime', 'DESC')
+      .getMany();
+
+    return schedules;
+  }
+
+  // Lấy danh sách các lớp học theo lịch thi
+  async getClassesByScheduleId(scheduleId: number): Promise<Classes[]> {
+    const examSchedule = await this.examScheduleRepo.findOne({
+      where: { id: scheduleId },
+      relations: ['classes'],
+    });
+
+    if (!examSchedule) {
+      throw new NotFoundException(
+        `Không tìm thấy lịch thi với ID ${scheduleId}`,
+      );
+    }
+
+    return examSchedule.classes;
   }
 }

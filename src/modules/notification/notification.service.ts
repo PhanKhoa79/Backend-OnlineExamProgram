@@ -5,6 +5,7 @@ import { Notifications } from 'src/database/entities/Notifications';
 import { WebsocketService } from '../websocket/websocket.service';
 import { RoleService } from '../role/role.service';
 import { Accounts } from 'src/database/entities/Accounts';
+import { ExamSchedule } from 'src/database/entities/ExamSchedule';
 
 @Injectable()
 export class NotificationService {
@@ -13,6 +14,8 @@ export class NotificationService {
   constructor(
     @InjectRepository(Notifications)
     private readonly notificationRepository: Repository<Notifications>,
+    @InjectRepository(Accounts)
+    private readonly accountsRepository: Repository<Accounts>,
     private readonly websocketService: WebsocketService,
     private readonly roleService: RoleService,
   ) {}
@@ -187,5 +190,126 @@ export class NotificationService {
     await this.createNotificationForPermission('account:create', message, {
       email,
     });
+  }
+
+  // Tạo thông báo về lịch thi mới cho sinh viên trong các lớp được chỉ định
+  async createExamScheduleNotification(
+    examSchedule: ExamSchedule,
+  ): Promise<Notifications[]> {
+    try {
+      if (!examSchedule.classes || examSchedule.classes.length === 0) {
+        this.logger.warn(
+          `No classes linked to exam schedule with ID: ${examSchedule.id}`,
+        );
+        return [];
+      }
+
+      const classIds = examSchedule.classes.map((cls) => cls.id);
+
+      // Tìm tất cả sinh viên thuộc các lớp được chỉ định
+      const students = await this.accountsRepository
+        .createQueryBuilder('account')
+        .innerJoin('students', 'student', 'student.account_id = account.id')
+        .innerJoin('student.class', 'class')
+        .where('class.id IN (:...classIds)', { classIds })
+        .getMany();
+
+      if (!students || students.length === 0) {
+        this.logger.warn(`No students found in the specified classes`);
+        return [];
+      }
+
+      // Tạo thông báo cho từng sinh viên
+      const notifications: Notifications[] = [];
+      const startDate = examSchedule.startTime.toLocaleDateString('vi-VN');
+      const startTime = examSchedule.startTime.toLocaleTimeString('vi-VN');
+      const message = `Lịch thi môn: ${examSchedule.subject?.name || 'Môn học'} sẽ diễn ra vào ngày ${startDate} lúc ${startTime}`;
+
+      for (const student of students) {
+        const notification = this.notificationRepository.create({
+          message,
+          account: { id: student.id },
+          isRead: false,
+        });
+
+        const savedNotification =
+          await this.notificationRepository.save(notification);
+        notifications.push(savedNotification);
+
+        // Gửi thông báo real-time cho từng sinh viên
+        this.websocketService.sendNotificationToUsers([student.id], {
+          id: savedNotification.id,
+          message: savedNotification.message,
+          createdAt: savedNotification.createdAt,
+          isRead: savedNotification.isRead,
+          metadata: {
+            examScheduleId: examSchedule.id,
+            subjectId: examSchedule.subject?.id,
+            startTime: examSchedule.startTime,
+            endTime: examSchedule.endTime,
+          },
+        });
+      }
+
+      return notifications;
+    } catch (error) {
+      this.logger.error(
+        `Error creating exam schedule notifications: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      throw error;
+    }
+  }
+
+  // Tạo thông báo cho học sinh trong một lớp cụ thể
+  async createNotificationForClass(
+    classId: number,
+    message: string,
+    metadata?: Record<string, any>,
+  ): Promise<Notifications[]> {
+    try {
+      // Tìm tất cả học sinh thuộc lớp được chỉ định
+      const students = await this.accountsRepository
+        .createQueryBuilder('account')
+        .innerJoin('students', 'student', 'student.account_id = account.id')
+        .innerJoin('student.class', 'class')
+        .where('class.id = :classId', { classId })
+        .getMany();
+
+      if (!students || students.length === 0) {
+        this.logger.warn(`No students found in class with ID: ${classId}`);
+        return [];
+      }
+
+      // Tạo thông báo cho từng học sinh
+      const notifications: Notifications[] = [];
+
+      for (const student of students) {
+        const notification = this.notificationRepository.create({
+          message,
+          account: { id: student.id },
+          isRead: false,
+        });
+
+        const savedNotification =
+          await this.notificationRepository.save(notification);
+        notifications.push(savedNotification);
+
+        // Gửi thông báo real-time cho từng học sinh
+        this.websocketService.sendNotificationToUsers([student.id], {
+          id: savedNotification.id,
+          message: savedNotification.message,
+          createdAt: savedNotification.createdAt,
+          isRead: savedNotification.isRead,
+          metadata: metadata || {},
+        });
+      }
+
+      return notifications;
+    } catch (error) {
+      this.logger.error(
+        `Error creating notifications for class ${classId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      throw error;
+    }
   }
 }

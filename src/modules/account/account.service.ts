@@ -286,9 +286,9 @@ export class AccountService {
   }
 
   async deleteAccountById(id: number): Promise<void> {
-    const account = await this.accountRepository.findOne({ 
+    const account = await this.accountRepository.findOne({
       where: { id },
-      relations: ['role']
+      relations: ['role'],
     });
 
     if (!account) {
@@ -299,7 +299,7 @@ export class AccountService {
     if (account.role && account.role.name === 'moderator') {
       throw new HttpException(
         'Không thể xóa tài khoản có vai trò Moderator',
-        HttpStatus.FORBIDDEN
+        HttpStatus.FORBIDDEN,
       );
     }
 
@@ -317,7 +317,7 @@ export class AccountService {
     // Tìm các tài khoản theo danh sách id với relations
     const accounts = await this.accountRepository.find({
       where: { id: In(ids) },
-      relations: ['role']
+      relations: ['role'],
     });
 
     if (accounts.length !== ids.length) {
@@ -334,7 +334,7 @@ export class AccountService {
 
     if (moderatorAccounts.length > 0) {
       const moderatorAccountNames = moderatorAccounts
-        .map(account => account.accountname)
+        .map((account) => account.accountname)
         .join(', ');
 
       throw new HttpException(

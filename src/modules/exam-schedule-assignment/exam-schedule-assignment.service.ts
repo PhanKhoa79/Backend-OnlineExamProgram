@@ -12,6 +12,9 @@ import { CreateExamScheduleAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateExamScheduleAssignmentDto } from './dto/update-assignment.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ExamScheduleService } from '../exam-schedule/exam-schedule.service';
+import { NotificationService } from '../notification/notification.service';
+import { Exams } from '../../database/entities/Exams';
+import { In } from 'typeorm';
 
 @Injectable()
 export class ExamScheduleAssignmentService {
@@ -20,6 +23,8 @@ export class ExamScheduleAssignmentService {
     private readonly assignmentRepo: Repository<ExamScheduleAssignments>,
     @Inject(forwardRef(() => ExamScheduleService))
     private readonly examScheduleService: ExamScheduleService,
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(
@@ -42,14 +47,33 @@ export class ExamScheduleAssignmentService {
       );
     }
 
+    // THÊM: Kiểm tra thời gian còn lại của lịch thi có đủ cho thời gian làm bài không
+    // Lấy thông tin về đề thi để biết thời gian làm bài
+    const examRepository = this.assignmentRepo.manager.getRepository(Exams);
+    const exam = await examRepository.findOne({
+      where: { id: createDto.examId },
+    });
+
+    if (!exam) {
+      throw new NotFoundException(
+        `Không tìm thấy đề thi với ID ${createDto.examId}`,
+      );
+    }
+
+    const examDuration = exam.duration || 60; // Mặc định 60 phút nếu không có
+    const remainingTime = Math.floor(
+      (schedule.endTime.getTime() - now.getTime()) / (60 * 1000),
+    ); // Thời gian còn lại tính bằng phút
+
+    if (remainingTime < examDuration) {
+      throw new BadRequestException(
+        `Thời gian còn lại của lịch thi (${remainingTime} phút) không đủ cho thời gian làm bài của đề thi (${examDuration} phút). Vui lòng chọn đề thi khác hoặc gia hạn lịch thi.`,
+      );
+    }
+
     const assignment = this.assignmentRepo.create({
       ...createDto,
-      code: this.generateRoomCode(
-        createDto.examScheduleId,
-        createDto.examId,
-        createDto.classId,
-      ),
-      maxParticipants: createDto.maxParticipants || 30, // Default 30 nếu không được cung cấp
+      maxParticipants: createDto.maxParticipants || 30,
       exam: { id: createDto.examId },
       examSchedule: { id: createDto.examScheduleId },
       class: { id: createDto.classId },
@@ -60,7 +84,7 @@ export class ExamScheduleAssignmentService {
 
   async findAll(): Promise<ExamScheduleAssignments[]> {
     return await this.assignmentRepo.find({
-      relations: ['exam', 'examSchedule', 'class'],
+      relations: ['exam', 'examSchedule', 'class', 'examSchedule.subject'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -151,6 +175,21 @@ export class ExamScheduleAssignmentService {
       where: { status: 'waiting' },
     });
 
+    // Lấy danh sách các phòng thi cần mở để gửi thông báo
+    const assignmentsToOpen = await this.assignmentRepo
+      .createQueryBuilder('assignment')
+      .leftJoinAndSelect('assignment.examSchedule', 'schedule')
+      .leftJoinAndSelect('assignment.class', 'class')
+      .leftJoinAndSelect('assignment.exam', 'exam')
+      .leftJoinAndSelect('schedule.subject', 'subject')
+      .where('assignment.status = :status', { status: 'waiting' })
+      .andWhere('schedule.startTime <= :now', { now })
+      .andWhere('schedule.status = :scheduleStatus', {
+        scheduleStatus: 'active',
+      })
+      .getMany();
+
+    // Cập nhật trạng thái phòng thi
     const result = await this.assignmentRepo
       .createQueryBuilder()
       .update(ExamScheduleAssignments)
@@ -165,20 +204,74 @@ export class ExamScheduleAssignmentService {
     console.log(
       `🔓 EXAM OPENED: ${result.affected || 0}/${waitingCount} rooms opened at ${now.toLocaleString('vi-VN')}`,
     );
+
+    // Gửi thông báo cho từng phòng thi đã mở
+    for (const assignment of assignmentsToOpen) {
+      try {
+        await this.sendExamOpenNotification(assignment);
+      } catch (error) {
+        console.error(
+          `Error sending notification for assignment ${assignment.id}:`,
+          error instanceof Error ? error.message : 'Unknown error',
+        );
+      }
+    }
+  }
+
+  // Phương thức gửi thông báo khi phòng thi được mở
+  private async sendExamOpenNotification(
+    assignment: ExamScheduleAssignments,
+  ): Promise<void> {
+    if (!assignment.class || !assignment.exam || !assignment.examSchedule) {
+      console.warn(
+        'Missing related entities in assignment, cannot send notification',
+      );
+      return;
+    }
+
+    const classId = assignment.class.id;
+    const subjectName = assignment.examSchedule.subject?.name || 'Môn học';
+    const examName = assignment.exam.name;
+    const duration = assignment.exam.duration || 60;
+
+    // Tạo thông báo cho học sinh trong lớp
+    const message = `Phòng thi môn ${subjectName} (${examName}) đã mở. Thời gian làm bài: ${duration} phút. Vui lòng vào phòng thi ngay.`;
+
+    try {
+      // Gọi service thông báo để gửi thông báo đến học sinh trong lớp
+      await this.notificationService.createNotificationForClass(
+        classId,
+        message,
+        {
+          assignmentId: assignment.id,
+          examId: assignment.exam.id,
+          scheduleId: assignment.examSchedule.id,
+          duration: duration,
+        },
+      );
+
+      console.log(
+        `✅ Đã gửi thông báo mở phòng thi cho lớp ${assignment.class.name}`,
+      );
+    } catch (error) {
+      console.error(
+        `Error sending exam open notification to class ${classId}:`,
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+    }
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
   async closeRooms(): Promise<void> {
     const now = new Date();
 
-    // 🔥 THAY ĐỔI: Kiểm tra dựa trên startTime + duration thay vì endTime
+    // 🔥 THAY ĐỔI: Kiểm tra dựa trên thời gian tạo phòng thi + duration (không cộng thêm 10 phút ân hạn)
     const scheduleNeedClosing = await this.assignmentRepo
       .createQueryBuilder('assignment')
-      .leftJoin('assignment.examSchedule', 'schedule')
       .leftJoin('assignment.exam', 'exam')
       .where('assignment.status = :status', { status: 'open' })
       .andWhere(
-        "schedule.start_time + COALESCE(exam.duration, 60) * INTERVAL '1 minute' <= :now",
+        "assignment.created_at + COALESCE(exam.duration, 60) * INTERVAL '1 minute' <= :now",
         { now },
       )
       .getCount();
@@ -192,27 +285,28 @@ export class ExamScheduleAssignmentService {
       where: { status: 'open' },
     });
 
-    // 🔥 THAY ĐỔI: Lấy assignments hết hạn dựa trên duration
+    // 🔥 THAY ĐỔI: Lấy assignments hết hạn dựa trên thời gian tạo + duration (không cộng thêm 10 phút ân hạn)
     const expiredAssignments = await this.assignmentRepo
       .createQueryBuilder('assignment')
       .leftJoinAndSelect('assignment.examSchedule', 'schedule')
       .leftJoinAndSelect('assignment.exam', 'exam')
+      .leftJoinAndSelect('assignment.class', 'class')
       .where('assignment.status = :status', { status: 'open' })
       .andWhere(
-        "schedule.start_time + COALESCE(exam.duration, 60) * INTERVAL '1 minute' <= :now",
+        "assignment.created_at + COALESCE(exam.duration, 60) * INTERVAL '1 minute' <= :now",
         { now },
       )
       .getMany();
 
     for (const assignment of expiredAssignments) {
-      // Tính thời gian kết thúc thực tế
-      const examEndTime = new Date(assignment.examSchedule.startTime);
+      // Tính thời gian kết thúc thực tế dựa trên thời gian tạo phòng thi (không cộng thêm ân hạn)
+      const examEndTime = new Date(assignment.createdAt);
       examEndTime.setMinutes(
         examEndTime.getMinutes() + (assignment.exam.duration || 60),
       );
 
       console.log(
-        `⏰ Closing room ${assignment.code}: Started at ${assignment.examSchedule.startTime.toLocaleString('vi-VN')}, Duration: ${assignment.exam.duration}min, Should end at: ${examEndTime.toLocaleString('vi-VN')}`,
+        `⏰ Closing room ${assignment.code}: Created at ${assignment.createdAt.toLocaleString('vi-VN')}, Duration: ${assignment.exam.duration}min, Should end at: ${examEndTime.toLocaleString('vi-VN')}`,
       );
 
       this.autoSubmitStudentExams(assignment.id);
@@ -305,7 +399,24 @@ export class ExamScheduleAssignmentService {
       }
     }
 
+    // Lưu trạng thái cũ để kiểm tra xem có phải mới mở phòng thi không
+    const oldStatus = assignment.status;
+
+    // Cập nhật trạng thái mới
     assignment.status = status;
+    const updatedAssignment = await this.assignmentRepo.save(assignment);
+
+    // Nếu phòng thi được mở (từ waiting sang open), gửi thông báo
+    if (oldStatus === 'waiting' && status === 'open') {
+      try {
+        await this.sendExamOpenNotification(updatedAssignment);
+      } catch (error) {
+        console.error(
+          `Error sending notification for manual opening of assignment ${id}:`,
+          error instanceof Error ? error.message : 'Unknown error',
+        );
+      }
+    }
 
     if (status === 'closed') {
       try {
@@ -319,7 +430,7 @@ export class ExamScheduleAssignmentService {
       }
     }
 
-    return await this.assignmentRepo.save(assignment);
+    return updatedAssignment;
   }
 
   private autoSubmitStudentExams(assignmentId: number) {
@@ -367,6 +478,27 @@ export class ExamScheduleAssignmentService {
     if (schedule.endTime < now) {
       throw new BadRequestException(
         'Không thể tạo phân công cho lịch thi đã kết thúc',
+      );
+    }
+
+    // 🔥 THÊM: Kiểm tra thời gian còn lại của lịch thi có đủ cho thời gian làm bài không
+    // Lấy thông tin về tất cả các đề thi để biết thời gian làm bài
+    const examRepository = this.assignmentRepo.manager.getRepository(Exams);
+    const exams = await examRepository.findBy({ id: In(examIds) });
+
+    if (exams.length !== examIds.length) {
+      throw new NotFoundException('Một số đề thi không tồn tại');
+    }
+
+    // Tìm đề thi có thời gian làm bài lâu nhất
+    const maxDuration = Math.max(...exams.map((exam) => exam.duration || 60));
+    const remainingTime = Math.floor(
+      (schedule.endTime.getTime() - now.getTime()) / (60 * 1000),
+    );
+
+    if (remainingTime < maxDuration) {
+      throw new BadRequestException(
+        `Thời gian còn lại của lịch thi (${remainingTime} phút) không đủ cho thời gian làm bài của đề thi dài nhất (${maxDuration} phút). Vui lòng chọn đề thi khác hoặc gia hạn lịch thi.`,
       );
     }
 
@@ -590,5 +722,46 @@ export class ExamScheduleAssignmentService {
     const timestamp = Date.now().toString(36).toUpperCase(); // Base36 ngắn hơn
     const hash = (scheduleId * 31 + examId * 37 + classId * 41) % 10000; // Hash ngắn
     return `R${scheduleId}E${examId}C${classId}-${timestamp}${hash}`;
+  }
+
+  // Lấy các phòng thi đang mở của một lớp
+  async getOpenExamsByClassId(classId: number): Promise<any[]> {
+    try {
+      const openExams = await this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .leftJoinAndSelect('assignment.exam', 'exam')
+        .leftJoinAndSelect('assignment.examSchedule', 'schedule')
+        .leftJoinAndSelect('schedule.subject', 'subject')
+        .leftJoinAndSelect('assignment.class', 'class')
+        .where('assignment.status = :status', { status: 'open' })
+        .andWhere('class.id = :classId', { classId })
+        .getMany();
+
+      // Chuyển đổi dữ liệu thành định dạng mong muốn
+      return openExams.map((assignment) => ({
+        id: assignment.id,
+        code: assignment.code,
+        subjectName:
+          assignment.examSchedule.subject?.name || 'Không có tên môn',
+        exam: {
+          id: assignment.exam.id,
+          name: assignment.exam.name,
+        },
+        duration: assignment.exam?.duration || 0,
+        totalQuestions: assignment.exam?.totalQuestions || 0,
+        maxScore: assignment.exam?.maxScore || 0,
+        startTime: assignment.examSchedule?.startTime,
+        endTime: assignment.examSchedule?.endTime,
+        randomizeOrder: assignment.randomizeOrder,
+      }));
+    } catch (error) {
+      console.error(
+        `Error getting open exams for class ${classId}:`,
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+      throw new BadRequestException(
+        'Không thể lấy danh sách phòng thi đang mở',
+      );
+    }
   }
 }

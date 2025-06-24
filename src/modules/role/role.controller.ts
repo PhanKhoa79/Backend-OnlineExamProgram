@@ -10,7 +10,7 @@ import {
   HttpStatus,
   Delete,
   Put,
-  UseInterceptors
+  UseInterceptors,
 } from '@nestjs/common';
 import { RoleService } from './role.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -99,13 +99,13 @@ export class RoleController {
     try {
       // Lấy thông tin role trước khi xóa
       const role = await this.roleService.getPermissionsByRoleId(id);
-      
+
       // Thực hiện xóa
       await this.roleService.deleteRoleById(id);
-      
-      return { 
+
+      return {
         message: `Role with id ${id} deleted successfully.`,
-        data: role // Trả về thông tin role đã xóa
+        data: role, // Trả về thông tin role đã xóa
       };
     } catch (error: any) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);

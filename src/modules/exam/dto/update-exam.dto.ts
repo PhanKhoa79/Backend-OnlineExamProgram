@@ -33,6 +33,11 @@ export class UpdateExamDto {
   @Type(() => Number)
   subjectId: number;
 
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  maxScore?: number;
+
   @IsArray()
   @IsOptional()
   @ArrayMinSize(1)

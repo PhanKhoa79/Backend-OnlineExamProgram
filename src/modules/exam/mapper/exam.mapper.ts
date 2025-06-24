@@ -9,6 +9,7 @@ export class ExamMapper {
       duration: dto.duration ?? null,
       examType: dto.examType,
       totalQuestions: dto.totalQuestions ?? null,
+      maxScore: dto.maxScore ?? 10,
       subject: { id: dto.subjectId } as any,
     };
   }
@@ -19,6 +20,7 @@ export class ExamMapper {
     if (dto.examType) entity.examType = dto.examType;
     if (dto.totalQuestions !== undefined)
       entity.totalQuestions = dto.totalQuestions;
+    if (dto.maxScore !== undefined) entity.maxScore = dto.maxScore;
     if (dto.subjectId) entity.subject = { id: dto.subjectId } as any;
     return entity;
   }

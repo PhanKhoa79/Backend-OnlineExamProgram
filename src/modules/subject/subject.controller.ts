@@ -55,13 +55,13 @@ export class SubjectController {
   ): Promise<{ message: string; data?: any }> {
     // Lấy thông tin môn học trước khi xóa
     const subject = await this.subjectService.findById(id);
-    
+
     // Thực hiện xóa
     await this.subjectService.delete(id);
-    
-    return { 
+
+    return {
       message: 'Xóa môn học thành công',
-      data: subject // Trả về thông tin môn học đã xóa
+      data: subject, // Trả về thông tin môn học đã xóa
     };
   }
 

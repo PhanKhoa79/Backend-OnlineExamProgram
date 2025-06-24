@@ -9,6 +9,7 @@ import { ExamScheduleAssignments } from 'src/database/entities/ExamScheduleAssig
 import { Answers } from '../../database/entities/Answers';
 import { StudentExams } from '../../database/entities/StudentExams';
 import { StudentAnswers } from '../../database/entities/StudentAnswers';
+import { Students } from '../../database/entities/Students';
 import { RedisModule } from '../redis/redis.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { RedisModule } from '../redis/redis.module';
       Answers,
       StudentExams,
       StudentAnswers,
+      Students,
     ]),
     RedisModule,
   ],

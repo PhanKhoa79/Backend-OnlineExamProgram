@@ -14,6 +14,20 @@ import { UpdateExamDto } from './dto/update-exam.dto';
 import { Subjects } from 'src/database/entities/Subjects';
 import * as ExcelJS from 'exceljs';
 import { RedisService } from '../redis/redis.service';
+import { StudentExams } from 'src/database/entities/StudentExams';
+import { StudentAnswers } from 'src/database/entities/StudentAnswers';
+import { Answers } from 'src/database/entities/Answers';
+import {
+  PracticeProgressDto,
+  StudentPracticeProgressResponseDto,
+} from './dto/practice-progress.dto';
+import {
+  SaveStudentAnswerDto,
+  StartExamDto,
+  StartExamResponseDto,
+  StudentAnswerResponseDto,
+} from './dto/student-answer.dto';
+import { Students } from 'src/database/entities/Students';
 
 @Injectable()
 export class ExamService {
@@ -23,6 +37,8 @@ export class ExamService {
     EXAM_DETAIL: 'exam_detail_',
     EXAM_BY_SUBJECT: 'exam_by_subject_',
     EXAM_QUESTIONS: 'exam_questions_',
+    EXAM_BY_TYPE: 'exam_by_type_',
+    STUDENT_PRACTICE_PROGRESS: 'student_practice_progress_',
   };
   private readonly CACHE_TTL = 600; // 10 phút (giây)
 
@@ -38,6 +54,18 @@ export class ExamService {
 
     @InjectRepository(ExamScheduleAssignments)
     private examScheduleAssignmentRepo: Repository<ExamScheduleAssignments>,
+
+    @InjectRepository(StudentExams)
+    private studentExamRepo: Repository<StudentExams>,
+
+    @InjectRepository(StudentAnswers)
+    private studentAnswerRepo: Repository<StudentAnswers>,
+
+    @InjectRepository(Answers)
+    private answerRepo: Repository<Answers>,
+
+    @InjectRepository(Students)
+    private studentRepo: Repository<Students>,
 
     private readonly redisService: RedisService,
   ) {}
@@ -74,6 +102,14 @@ export class ExamService {
           `${this.CACHE_KEYS.EXAM_QUESTIONS}*`,
         );
         for (const cacheKey of questionsCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache đề thi theo loại
+        const typeCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.EXAM_BY_TYPE}*`,
+        );
+        for (const cacheKey of typeCacheKeys) {
           await this.redisService.del(cacheKey);
         }
       }
@@ -130,6 +166,16 @@ export class ExamService {
     await this.invalidateCache(
       `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${subjectId}`,
     );
+    await this.invalidateCache(
+      `${this.CACHE_KEYS.EXAM_BY_TYPE}${createExamDto.examType}`,
+    );
+
+    // Xóa cache practice exams nếu đây là đề thi practice
+    if (createExamDto.examType === 'practice') {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.EXAM_BY_SUBJECT}practice_${subjectId}`,
+      );
+    }
 
     return savedExam;
   }
@@ -164,6 +210,7 @@ export class ExamService {
 
     const { questionIds, totalQuestions, subjectId } = updateExamDto;
     const oldSubjectId = exam.subject?.id;
+    const oldExamType = exam.examType;
 
     if (questionIds) {
       const currentTotalQuestions = exam.totalQuestions;
@@ -254,6 +301,17 @@ export class ExamService {
       );
     }
 
+    if (oldExamType && oldExamType !== exam.examType) {
+      await this.invalidateCache(
+        `${this.CACHE_KEYS.EXAM_BY_TYPE}${oldExamType}`,
+      );
+    }
+
+    // Xóa cache cho exam type hiện tại
+    await this.invalidateCache(
+      `${this.CACHE_KEYS.EXAM_BY_TYPE}${updatedExam.examType}`,
+    );
+
     return updatedExam;
   }
 
@@ -283,6 +341,7 @@ export class ExamService {
 
     if (exam) {
       const subjectId = exam.subject?.id;
+      const examType = exam.examType;
       await this.examRepo.delete(id);
 
       // Xóa cache sau khi xóa
@@ -293,6 +352,12 @@ export class ExamService {
       if (subjectId) {
         await this.invalidateCache(
           `${this.CACHE_KEYS.EXAM_BY_SUBJECT}${subjectId}`,
+        );
+      }
+
+      if (examType) {
+        await this.invalidateCache(
+          `${this.CACHE_KEYS.EXAM_BY_TYPE}${examType}`,
         );
       }
     } else {
@@ -388,6 +453,114 @@ export class ExamService {
           },
         },
         relations: ['subject'],
+      });
+    }
+  }
+
+  async getExamsByType(examType: 'practice' | 'official'): Promise<Exams[]> {
+    const cacheKey = `${this.CACHE_KEYS.EXAM_BY_TYPE}${examType}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Exams[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const exams = await this.examRepo.find({
+        where: {
+          examType,
+        },
+        relations: ['subject'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
+      });
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(exams),
+        this.CACHE_TTL,
+      );
+
+      return exams;
+    } catch (error) {
+      this.logger.error(
+        `Error in getExamsByType: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.examRepo.find({
+        where: {
+          examType,
+        },
+        relations: ['subject'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
+      });
+    }
+  }
+
+  async getPracticeExamsBySubject(subjectId: number): Promise<Exams[]> {
+    const cacheKey = `${this.CACHE_KEYS.EXAM_BY_SUBJECT}practice_${subjectId}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as Exams[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const exams = await this.examRepo.find({
+        where: {
+          subject: {
+            id: subjectId,
+          },
+          examType: 'practice',
+        },
+        relations: ['subject'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
+      });
+
+      // Lưu vào cache
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(exams),
+        this.CACHE_TTL,
+      );
+
+      return exams;
+    } catch (error) {
+      this.logger.error(
+        `Error in getPracticeExamsBySubject: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.examRepo.find({
+        where: {
+          subject: {
+            id: subjectId,
+          },
+          examType: 'practice',
+        },
+        relations: ['subject'],
+        order: {
+          updatedAt: 'DESC',
+          createdAt: 'DESC',
+        },
       });
     }
   }
@@ -559,6 +732,120 @@ export class ExamService {
     }
 
     return shuffled;
+  }
+
+  /**
+   * Lấy tiến độ luyện tập của học sinh theo từng môn học
+   * @param studentId ID của học sinh
+   * @returns Thông tin tiến độ luyện tập theo từng môn
+   */
+  async getStudentPracticeProgress(
+    studentId: number,
+  ): Promise<StudentPracticeProgressResponseDto> {
+    const cacheKey = `${this.CACHE_KEYS.STUDENT_PRACTICE_PROGRESS}${studentId}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData) as StudentPracticeProgressResponseDto;
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      const result = await this.calculateStudentPracticeProgress(studentId);
+
+      // Lưu vào cache với TTL ngắn hơn (5 phút) vì dữ liệu có thể thay đổi thường xuyên
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(result),
+        300, // 5 phút
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Error in getStudentPracticeProgress: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.calculateStudentPracticeProgress(studentId);
+    }
+  }
+
+  /**
+   * Tính toán tiến độ luyện tập thực tế (logic tách riêng để dễ test và maintain)
+   */
+  private async calculateStudentPracticeProgress(
+    studentId: number,
+  ): Promise<StudentPracticeProgressResponseDto> {
+    // Lấy tất cả môn học có đề thi practice
+    const subjectsWithPracticeExams = await this.subjectRepo
+      .createQueryBuilder('subject')
+      .leftJoin('subject.exams', 'exam')
+      .where('exam.examType = :examType', { examType: 'practice' })
+      .groupBy('subject.id, subject.name')
+      .select(['subject.id', 'subject.name'])
+      .getRawMany();
+
+    const progressData: PracticeProgressDto[] = [];
+    let totalPracticeExams = 0;
+    let totalCompletedExams = 0;
+
+    for (const subject of subjectsWithPracticeExams) {
+      // Đếm tổng số đề practice của môn học này
+      const totalExamsCount = await this.examRepo.count({
+        where: {
+          subject: { id: subject.subject_id },
+          examType: 'practice',
+        },
+      });
+
+      // Đếm số đề practice đã làm của học sinh trong môn này
+      const completedExamsCount = await this.studentExamRepo
+        .createQueryBuilder('studentExam')
+        .leftJoin('studentExam.exam', 'exam')
+        .leftJoin('exam.subject', 'subject')
+        .where('studentExam.student.id = :studentId', { studentId })
+        .andWhere('exam.examType = :examType', { examType: 'practice' })
+        .andWhere('subject.id = :subjectId', { subjectId: subject.subject_id })
+        .andWhere('studentExam.isSubmitted = :isSubmitted', {
+          isSubmitted: true,
+        })
+        .getCount();
+
+      const progressPercentage =
+        totalExamsCount > 0
+          ? Math.round((completedExamsCount / totalExamsCount) * 100)
+          : 0;
+
+      progressData.push({
+        subjectName: subject.subject_name,
+        totalPracticeExams: totalExamsCount,
+        completedPracticeExams: completedExamsCount,
+        progressPercentage,
+      });
+
+      totalPracticeExams += totalExamsCount;
+      totalCompletedExams += completedExamsCount;
+    }
+
+    const overallPercentage =
+      totalPracticeExams > 0
+        ? Math.round((totalCompletedExams / totalPracticeExams) * 100)
+        : 0;
+
+    return {
+      studentId,
+      subjects: progressData,
+      overallProgress: {
+        totalSubjects: subjectsWithPracticeExams.length,
+        totalPracticeExams,
+        totalCompletedExams,
+        overallPercentage,
+      },
+    };
   }
 
   async exportExamWithQuestions(
@@ -766,6 +1053,784 @@ export class ExamService {
       buffer,
       filename,
       contentType: 'text/csv; charset=utf-8',
+    };
+  }
+
+  /**
+   * Tính điểm cho sinh viên dựa trên câu trả lời đã nộp
+   * @param studentExamId ID của StudentExam record
+   * @returns Điểm số đã tính toán
+   */
+  async calculateStudentScore(studentExamId: number): Promise<number> {
+    // Lấy thông tin bài thi của sinh viên với các câu trả lời
+    const studentExam = await this.studentExamRepo.findOne({
+      where: { id: studentExamId },
+      relations: [
+        'exam',
+        'studentAnswers',
+        'studentAnswers.answer',
+        'studentAnswers.question',
+        'studentAnswers.question.answers',
+      ],
+    });
+
+    if (!studentExam) {
+      throw new NotFoundException(
+        `Student exam with ID ${studentExamId} not found`,
+      );
+    }
+
+    const { exam, studentAnswers } = studentExam;
+    let correctAnswers = 0;
+
+    // Tổng số câu = số câu trong đề thi (không phải số câu đã trả lời)
+    const totalQuestions = exam.totalQuestions || exam.questions?.length || 0;
+
+    // Đếm số câu trả lời đúng
+    for (const studentAnswer of studentAnswers) {
+      // Chỉ tính điểm cho câu đã trả lời (có answerId)
+      if (studentAnswer.answerId) {
+        const question = studentAnswer.question;
+        const correctAnswer = question.answers.find((a) => a.isCorrect);
+
+        if (correctAnswer && studentAnswer.answerId === correctAnswer.id) {
+          correctAnswers++;
+        }
+      }
+      // Câu không trả lời (answerId = null) → tự động sai, không cộng điểm
+    }
+
+    // Tính điểm theo công thức: (số câu đúng / tổng số câu) × điểm tối đa
+    const scorePercentage =
+      totalQuestions > 0 ? correctAnswers / totalQuestions : 0;
+    const finalScore = scorePercentage * exam.maxScore;
+
+    // Làm tròn đến 2 chữ số thập phân
+    return Math.round(finalScore * 100) / 100;
+  }
+
+  /**
+   * Cập nhật điểm cho sinh viên và đánh dấu bài thi đã hoàn thành
+   * @param studentExamId ID của StudentExam record
+   * @returns StudentExam đã được cập nhật
+   */
+  async submitStudentExam(studentExamId: number): Promise<StudentExams> {
+    const score = await this.calculateStudentScore(studentExamId);
+
+    const studentExam = await this.studentExamRepo.findOneBy({
+      id: studentExamId,
+    });
+
+    if (!studentExam) {
+      throw new NotFoundException(
+        `Student exam with ID ${studentExamId} not found`,
+      );
+    }
+
+    // Cập nhật điểm và trạng thái
+    studentExam.score = score;
+    studentExam.isSubmitted = true;
+    studentExam.submittedAt = new Date();
+
+    const updatedStudentExam = await this.studentExamRepo.save(studentExam);
+
+    // Xóa cache tiến độ luyện tập của học sinh sau khi nộp bài
+    const studentProgressCacheKey = `${this.CACHE_KEYS.STUDENT_PRACTICE_PROGRESS}${studentExam.student?.id || 'unknown'}`;
+    await this.invalidateCache(studentProgressCacheKey);
+
+    return updatedStudentExam;
+  }
+
+  /**
+   * Bắt đầu làm bài thi - tạo hoặc lấy StudentExam hiện có
+   */
+  async startExam(startExamDto: StartExamDto): Promise<StartExamResponseDto> {
+    const { examId, studentId } = startExamDto;
+
+    // Kiểm tra exam có tồn tại không
+    const exam = await this.examRepo.findOne({
+      where: { id: examId },
+      relations: ['questions', 'questions.answers'],
+    });
+
+    if (!exam) {
+      throw new NotFoundException(`Exam with ID ${examId} not found`);
+    }
+
+    // Kiểm tra student có tồn tại không
+    const student = await this.studentRepo.findOneBy({ id: studentId });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found`);
+    }
+
+    // Tìm StudentExam hiện có hoặc tạo mới
+    let studentExam = await this.studentExamRepo.findOne({
+      where: {
+        exam: { id: examId },
+        student: { id: studentId },
+        isSubmitted: false, // Chỉ lấy bài chưa nộp
+      },
+    });
+
+    if (!studentExam) {
+      // Tạo StudentExam mới
+      studentExam = this.studentExamRepo.create({
+        exam: { id: examId },
+        student: { id: studentId },
+        startedAt: new Date(),
+        isSubmitted: false,
+      });
+      studentExam = await this.studentExamRepo.save(studentExam);
+    }
+
+    // Lấy các câu trả lời đã có
+    const existingAnswers = await this.studentAnswerRepo.find({
+      where: { studentExamId: studentExam.id },
+    });
+
+    const existingAnswersDto: StudentAnswerResponseDto[] = existingAnswers.map(
+      (answer) => ({
+        studentExamId: answer.studentExamId,
+        questionId: answer.questionId,
+        answerId: answer.answerId,
+        answeredAt: answer.answeredAt,
+        isMarked: answer.isMarked,
+      }),
+    );
+
+    return {
+      studentExamId: studentExam.id,
+      examId: exam.id,
+      studentId: student.id,
+      startedAt: studentExam.startedAt,
+      questions: exam.questions,
+      existingAnswers: existingAnswersDto,
+    };
+  }
+
+  /**
+   * Lưu câu trả lời của học sinh (tạo mới hoặc cập nhật)
+   * Hàm này xử lý cả việc tạo mới và cập nhật câu trả lời
+   */
+  async saveStudentAnswer(
+    saveAnswerDto: SaveStudentAnswerDto,
+  ): Promise<StudentAnswerResponseDto> {
+    const { studentExamId, questionId, answerId, isMarked } = saveAnswerDto;
+
+    // Kiểm tra StudentExam có tồn tại và chưa nộp bài
+    const studentExam = await this.studentExamRepo.findOneBy({
+      id: studentExamId,
+      isSubmitted: false,
+    });
+
+    if (!studentExam) {
+      throw new NotFoundException(
+        'Student exam not found or already submitted',
+      );
+    }
+
+    // Tìm câu trả lời hiện có
+    let studentAnswer = await this.studentAnswerRepo.findOneBy({
+      studentExamId,
+      questionId,
+    });
+
+    if (studentAnswer) {
+      // Cập nhật câu trả lời hiện có
+      studentAnswer.answerId = answerId ?? null;
+      studentAnswer.answeredAt = new Date();
+      if (isMarked !== undefined) {
+        studentAnswer.isMarked = isMarked;
+      }
+    } else {
+      // Tạo câu trả lời mới
+      studentAnswer = this.studentAnswerRepo.create({
+        studentExamId,
+        questionId,
+        answerId: answerId ?? null,
+        answeredAt: new Date(),
+        isMarked: isMarked || false,
+      });
+    }
+
+    const savedAnswer = await this.studentAnswerRepo.save(studentAnswer);
+
+    return {
+      studentExamId: savedAnswer.studentExamId,
+      questionId: savedAnswer.questionId,
+      answerId: savedAnswer.answerId,
+      answeredAt: savedAnswer.answeredAt,
+      isMarked: savedAnswer.isMarked,
+    };
+  }
+
+  /**
+   * Lấy tất cả câu trả lời của một bài thi
+   */
+  async getStudentAnswers(
+    studentExamId: number,
+  ): Promise<StudentAnswerResponseDto[]> {
+    const answers = await this.studentAnswerRepo.find({
+      where: { studentExamId },
+      order: { questionId: 'ASC' },
+    });
+
+    return answers.map((answer) => ({
+      studentExamId: answer.studentExamId,
+      questionId: answer.questionId,
+      answerId: answer.answerId,
+      answeredAt: answer.answeredAt,
+      isMarked: answer.isMarked,
+    }));
+  }
+
+  /**
+   * Lấy danh sách đề thi practice đang làm dở (chưa submit)
+   * @param studentId ID của sinh viên
+   * @returns Danh sách đề thi đang làm dở với thông tin tiến độ
+   */
+  async getInProgressPracticeExams(studentId: number) {
+    // Kiểm tra student có tồn tại không
+    const student = await this.studentRepo.findOneBy({ id: studentId });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found`);
+    }
+
+    // Lấy các bài thi đang làm dở (có StudentExam nhưng chưa submit)
+    const inProgressExams = await this.studentExamRepo.find({
+      where: {
+        student: { id: studentId },
+        isSubmitted: false,
+      },
+      relations: ['exam', 'exam.subject', 'studentAnswers'],
+      order: {
+        startedAt: 'DESC',
+      },
+    });
+
+    // Chỉ lấy practice exams
+    const practiceExamsInProgress = inProgressExams.filter(
+      (studentExam) => studentExam.exam.examType === 'practice',
+    );
+
+    // Tính toán tiến độ cho mỗi bài thi
+    const result = practiceExamsInProgress.map((studentExam) => {
+      const totalQuestions = studentExam.exam.totalQuestions || 0;
+      const answeredQuestions = studentExam.studentAnswers.filter(
+        (answer) => answer.answerId !== null,
+      ).length;
+      const progressPercentage =
+        totalQuestions > 0
+          ? Math.round((answeredQuestions / totalQuestions) * 100)
+          : 0;
+
+      return {
+        studentExamId: studentExam.id,
+        exam: studentExam.exam,
+        startedAt: studentExam.startedAt,
+        progress: {
+          totalQuestions,
+          answeredQuestions,
+          progressPercentage,
+        },
+      };
+    });
+
+    return result;
+  }
+
+  /**
+   * Lấy danh sách đề thi practice đã hoàn thành của sinh viên
+   * @param studentId ID của sinh viên
+   * @returns Danh sách đề thi đã hoàn thành với điểm số và thời gian
+   */
+  async getCompletedPracticeExams(studentId: number) {
+    // Kiểm tra student có tồn tại không
+    const student = await this.studentRepo.findOneBy({ id: studentId });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found`);
+    }
+
+    // Lấy các bài thi đã hoàn thành (đã submit)
+    const completedExams = await this.studentExamRepo.find({
+      where: {
+        student: { id: studentId },
+        isSubmitted: true,
+      },
+      relations: ['exam', 'exam.subject'],
+      order: {
+        submittedAt: 'DESC',
+      },
+    });
+
+    // Chỉ lấy practice exams
+    const practiceExamsCompleted = completedExams.filter(
+      (studentExam) => studentExam.exam.examType === 'practice',
+    );
+
+    // Format kết quả
+    const result = practiceExamsCompleted.map((studentExam) => {
+      const totalQuestions = studentExam.exam.totalQuestions || 0;
+      const maxScore = studentExam.exam.maxScore || 100;
+      const score = studentExam.score || 0;
+      const scorePercentage =
+        maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+      return {
+        studentExamId: studentExam.id,
+        exam: {
+          id: studentExam.exam.id,
+          name: studentExam.exam.name,
+          subject: studentExam.exam.subject,
+          duration: studentExam.exam.duration,
+          totalQuestions,
+          maxScore,
+        },
+        result: {
+          score,
+          scorePercentage,
+          startedAt: studentExam.startedAt,
+          submittedAt: studentExam.submittedAt,
+          timeTaken: this.calculateTimeTaken(
+            studentExam.startedAt || new Date(),
+            studentExam.submittedAt,
+          ),
+        },
+      };
+    });
+
+    return {
+      studentId,
+      totalCompletedExams: result.length,
+      totalPracticeExams: result.length,
+      totalOfficialExams: 0,
+      completedExams: result,
+      practiceExams: result,
+      officialExams: [],
+    };
+  }
+
+  /**
+   * Lấy kết quả chi tiết của một bài thi đã hoàn thành
+   * @param studentExamId ID của StudentExam
+   * @returns Kết quả chi tiết bao gồm điểm số, câu trả lời từng câu
+   */
+  async getExamResult(studentExamId: number) {
+    // Lấy thông tin bài thi với tất cả relations cần thiết
+    const studentExam = await this.studentExamRepo.findOne({
+      where: { id: studentExamId, isSubmitted: true },
+      relations: [
+        'exam',
+        'exam.subject',
+        'student',
+        'studentAnswers',
+        'studentAnswers.question',
+        'studentAnswers.question.answers',
+        'studentAnswers.answer',
+      ],
+    });
+
+    if (!studentExam) {
+      throw new NotFoundException(
+        `Completed exam with ID ${studentExamId} not found`,
+      );
+    }
+
+    const { exam, student, studentAnswers } = studentExam;
+    const totalQuestions = exam.totalQuestions || 0;
+    const maxScore = exam.maxScore || 100;
+    const score = studentExam.score || 0;
+    const scorePercentage =
+      maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+    // Phân tích từng câu trả lời
+    const questionResults = studentAnswers.map((studentAnswer) => {
+      const question = studentAnswer.question;
+      const correctAnswer = question.answers.find((a) => a.isCorrect);
+      const studentSelectedAnswer = studentAnswer.answer;
+      const isCorrect =
+        studentSelectedAnswer && correctAnswer
+          ? studentSelectedAnswer.id === correctAnswer.id
+          : false;
+
+      return {
+        questionId: question.id,
+        questionText: question.questionText,
+        passageText: question.passageText,
+        imageUrl: question.imageUrl,
+        audioUrl: question.audioUrl,
+        difficultyLevel: question.difficultyLevel,
+        answers: question.answers.map((answer) => ({
+          id: answer.id,
+          answerText: answer.answerText,
+          isCorrect: answer.isCorrect,
+          isSelected: studentSelectedAnswer
+            ? answer.id === studentSelectedAnswer.id
+            : false,
+        })),
+        studentAnswer: {
+          answerId: studentAnswer.answerId,
+          isCorrect,
+          answeredAt: studentAnswer.answeredAt,
+          isMarked: studentAnswer.isMarked,
+        },
+      };
+    });
+
+    // Thống kê kết quả
+    const correctAnswers = questionResults.filter(
+      (q) => q.studentAnswer.isCorrect,
+    ).length;
+    const incorrectAnswers = questionResults.filter(
+      (q) => !q.studentAnswer.isCorrect && q.studentAnswer.answerId !== null,
+    ).length;
+    // Tính số câu chưa trả lời: tổng số câu - số câu đã trả lời (đúng + sai)
+    const answeredQuestions = correctAnswers + incorrectAnswers;
+    const unansweredQuestions = totalQuestions - answeredQuestions;
+
+    return {
+      studentExamInfo: {
+        id: studentExam.id,
+        student: {
+          id: student.id,
+          fullName: student.fullName,
+          studentCode: student.studentCode,
+        },
+        exam: {
+          id: exam.id,
+          name: exam.name,
+          subject: exam.subject,
+          duration: exam.duration,
+          totalQuestions,
+          maxScore,
+        },
+        result: {
+          score,
+          scorePercentage,
+          startedAt: studentExam.startedAt,
+          submittedAt: studentExam.submittedAt,
+          timeTaken: this.calculateTimeTaken(
+            studentExam.startedAt || new Date(),
+            studentExam.submittedAt || new Date(),
+          ),
+        },
+      },
+      statistics: {
+        totalQuestions,
+        correctAnswers,
+        incorrectAnswers,
+        unansweredQuestions,
+        accuracyPercentage:
+          totalQuestions > 0
+            ? Math.round((correctAnswers / totalQuestions) * 100)
+            : 0,
+      },
+      questionResults,
+    };
+  }
+
+  /**
+   * Lấy kết quả thi của một sinh viên cụ thể trong một đề thi cụ thể
+   * @param examId ID của đề thi
+   * @param studentId ID của sinh viên
+   * @returns Kết quả chi tiết bài thi của sinh viên trong đề thi đó
+   */
+  async getStudentExamResult(examId: number, studentId: number) {
+    // Tìm StudentExam dựa trên examId và studentId
+    const studentExam = await this.studentExamRepo.findOne({
+      where: {
+        exam: { id: examId },
+        student: { id: studentId },
+        isSubmitted: true,
+      },
+      relations: [
+        'exam',
+        'exam.subject',
+        'student',
+        'studentAnswers',
+        'studentAnswers.question',
+        'studentAnswers.question.answers',
+        'studentAnswers.answer',
+      ],
+      order: {
+        submittedAt: 'DESC', // Nếu có nhiều lần thi, lấy lần gần nhất
+      },
+    });
+
+    if (!studentExam) {
+      throw new NotFoundException(
+        `Không tìm thấy kết quả thi của sinh viên ID ${studentId} cho đề thi ID ${examId}`,
+      );
+    }
+
+    // Sử dụng lại logic từ hàm getExamResult
+    return this.formatExamResult(studentExam);
+  }
+
+  /**
+   * Lấy tất cả kết quả thi của một đề thi (tất cả sinh viên)
+   * @param examId ID của đề thi
+   * @returns Danh sách kết quả thi của tất cả sinh viên
+   */
+  async getAllStudentResultsForExam(examId: number) {
+    // Kiểm tra đề thi có tồn tại không
+    const exam = await this.examRepo.findOneBy({ id: examId });
+    if (!exam) {
+      throw new NotFoundException(`Exam with ID ${examId} not found`);
+    }
+
+    // Lấy tất cả kết quả thi của đề thi này
+    const studentExams = await this.studentExamRepo.find({
+      where: {
+        exam: { id: examId },
+        isSubmitted: true,
+      },
+      relations: [
+        'exam',
+        'exam.subject',
+        'student',
+        'studentAnswers',
+        'studentAnswers.question',
+        'studentAnswers.question.answers',
+        'studentAnswers.answer',
+      ],
+      order: {
+        score: 'DESC', // Sắp xếp theo điểm cao nhất
+        submittedAt: 'ASC',
+      },
+    });
+
+    if (studentExams.length === 0) {
+      return {
+        examId,
+        examName: exam.name,
+        totalStudents: 0,
+        results: [],
+        statistics: {
+          averageScore: 0,
+          highestScore: 0,
+          lowestScore: 0,
+          passCount: 0,
+          failCount: 0,
+        },
+      };
+    }
+
+    // Format kết quả cho từng sinh viên
+    const results = studentExams.map((studentExam) =>
+      this.formatExamResult(studentExam),
+    );
+
+    // Tính thống kê chung
+    const scores = studentExams.map((se) => se.score || 0);
+    const averageScore =
+      scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const highestScore = Math.max(...scores);
+    const lowestScore = Math.min(...scores);
+    const passThreshold = (exam.maxScore || 100) * 0.5; // 50% để pass
+    const passCount = scores.filter((score) => score >= passThreshold).length;
+    const failCount = scores.length - passCount;
+
+    return {
+      examId,
+      examName: exam.name,
+      totalStudents: studentExams.length,
+      results,
+      statistics: {
+        averageScore: Math.round(averageScore * 100) / 100,
+        highestScore,
+        lowestScore,
+        passCount,
+        failCount,
+        passRate: Math.round((passCount / scores.length) * 100),
+      },
+    };
+  }
+
+  /**
+   * Helper method: Format kết quả thi (tách logic chung)
+   */
+  private formatExamResult(studentExam: any) {
+    const { exam, student, studentAnswers } = studentExam;
+    const totalQuestions = exam.totalQuestions || 0;
+    const maxScore = exam.maxScore || 100;
+    const score = studentExam.score || 0;
+    const scorePercentage =
+      maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+    // Phân tích từng câu trả lời
+    const questionResults = studentAnswers.map((studentAnswer: any) => {
+      const question = studentAnswer.question;
+      const correctAnswer = question.answers.find((a: any) => a.isCorrect);
+      const studentSelectedAnswer = studentAnswer.answer;
+      const isCorrect =
+        studentSelectedAnswer && correctAnswer
+          ? studentSelectedAnswer.id === correctAnswer.id
+          : false;
+
+      return {
+        questionId: question.id,
+        questionText: question.questionText,
+        passageText: question.passageText,
+        imageUrl: question.imageUrl,
+        audioUrl: question.audioUrl,
+        difficultyLevel: question.difficultyLevel,
+        answers: question.answers.map((answer: any) => ({
+          id: answer.id,
+          answerText: answer.answerText,
+          isCorrect: answer.isCorrect,
+          isSelected: studentSelectedAnswer
+            ? answer.id === studentSelectedAnswer.id
+            : false,
+        })),
+        studentAnswer: {
+          answerId: studentAnswer.answerId,
+          isCorrect,
+          answeredAt: studentAnswer.answeredAt,
+          isMarked: studentAnswer.isMarked,
+        },
+      };
+    });
+
+    // Thống kê kết quả
+    const correctAnswers = questionResults.filter(
+      (q: any) => q.studentAnswer.isCorrect,
+    ).length;
+    const incorrectAnswers = questionResults.filter(
+      (q: any) =>
+        !q.studentAnswer.isCorrect && q.studentAnswer.answerId !== null,
+    ).length;
+
+    // Tính số câu chưa trả lời: tổng số câu - số câu đã trả lời (đúng + sai)
+    const answeredQuestions = correctAnswers + incorrectAnswers;
+    const unansweredQuestions = totalQuestions - answeredQuestions;
+
+    return {
+      studentExamInfo: {
+        id: studentExam.id,
+        student: {
+          id: student.id,
+          fullName: student.fullName,
+          studentCode: student.studentCode,
+        },
+        exam: {
+          id: exam.id,
+          name: exam.name,
+          subject: exam.subject,
+          duration: exam.duration,
+          totalQuestions,
+          maxScore,
+        },
+        result: {
+          score,
+          scorePercentage,
+          startedAt: studentExam.startedAt,
+          submittedAt: studentExam.submittedAt,
+          timeTaken: this.calculateTimeTaken(
+            studentExam.startedAt || new Date(),
+            studentExam.submittedAt || new Date(),
+          ),
+        },
+      },
+      statistics: {
+        totalQuestions,
+        correctAnswers,
+        incorrectAnswers,
+        unansweredQuestions,
+        accuracyPercentage:
+          totalQuestions > 0
+            ? Math.round((correctAnswers / totalQuestions) * 100)
+            : 0,
+      },
+      questionResults,
+    };
+  }
+
+  /**
+   * Helper method: Tính thời gian làm bài (phút)
+   */
+  private calculateTimeTaken(
+    startedAt: Date,
+    submittedAt: Date | null,
+  ): number {
+    if (!submittedAt) return 0;
+    const timeDiff = submittedAt.getTime() - startedAt.getTime();
+    return Math.round(timeDiff / (1000 * 60)); // Chuyển đổi sang phút
+  }
+
+  /**
+   * Lấy danh sách tất cả đề thi đã hoàn thành của sinh viên (cả practice và official)
+   * @param studentId ID của sinh viên
+   * @returns Danh sách đề thi đã hoàn thành với điểm số và thời gian
+   */
+  async getAllCompletedExams(studentId: number) {
+    // Kiểm tra student có tồn tại không
+    const student = await this.studentRepo.findOneBy({ id: studentId });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found`);
+    }
+
+    // Lấy tất cả bài thi đã hoàn thành (đã submit)
+    const completedExams = await this.studentExamRepo.find({
+      where: {
+        student: { id: studentId },
+        isSubmitted: true,
+      },
+      relations: ['exam', 'exam.subject'],
+      order: {
+        submittedAt: 'DESC',
+      },
+    });
+
+    // Format kết quả
+    const result = completedExams.map((studentExam) => {
+      const totalQuestions = studentExam.exam.totalQuestions || 0;
+      const maxScore = studentExam.exam.maxScore || 100;
+      const score = studentExam.score || 0;
+      const scorePercentage =
+        maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+      return {
+        studentExamId: studentExam.id,
+        exam: {
+          id: studentExam.exam.id,
+          name: studentExam.exam.name,
+          subject: studentExam.exam.subject,
+          examType: studentExam.exam.examType,
+          duration: studentExam.exam.duration,
+          totalQuestions,
+          maxScore,
+        },
+        result: {
+          score,
+          scorePercentage,
+          startedAt: studentExam.startedAt,
+          submittedAt: studentExam.submittedAt,
+          timeTaken: this.calculateTimeTaken(
+            studentExam.startedAt || new Date(),
+            studentExam.submittedAt,
+          ),
+        },
+      };
+    });
+
+    // Phân loại kết quả theo loại đề thi
+    const practiceExams = result.filter(
+      (exam) => exam.exam.examType === 'practice',
+    );
+
+    const officialExams = result.filter(
+      (exam) => exam.exam.examType === 'official',
+    );
+
+    return {
+      studentId,
+      totalCompletedExams: result.length,
+      totalPracticeExams: practiceExams.length,
+      totalOfficialExams: officialExams.length,
+      completedExams: result,
+      practiceExams,
+      officialExams,
     };
   }
 }

@@ -10,6 +10,8 @@ import { CreateClassDto } from './dto/create-class.dto';
 import { UpdateClassDto } from './dto/update-class.dto';
 import { Classes } from 'src/database/entities/Classes';
 import { RedisService } from '../redis/redis.service';
+import { checkActiveClassExams } from '../../common/utils/exam-validation.util';
+import { ExamScheduleAssignments } from 'src/database/entities/ExamScheduleAssignments';
 
 @Injectable()
 export class ClassesService {
@@ -23,6 +25,8 @@ export class ClassesService {
   constructor(
     @InjectRepository(Classes)
     private readonly classRepo: Repository<Classes>,
+    @InjectRepository(ExamScheduleAssignments)
+    private readonly examScheduleAssignmentsRepo: Repository<ExamScheduleAssignments>,
     private readonly redisService: RedisService,
   ) {}
 
@@ -74,6 +78,10 @@ export class ClassesService {
   async update(id: number, updateDto: UpdateClassDto): Promise<Classes> {
     const entity = await this.classRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException(`Không tìm thấy lớp học ID ${id}`);
+    
+    // Kiểm tra xem lớp có đang có phòng thi mở không
+    await checkActiveClassExams(this.examScheduleAssignmentsRepo, id);
+    
     const updated = this.classRepo.merge(entity, updateDto);
     const result = await this.classRepo.save(updated);
 
@@ -85,6 +93,14 @@ export class ClassesService {
   }
 
   async delete(id: number): Promise<void> {
+    const entity = await this.classRepo.findOneBy({ id });
+    if (!entity) {
+      throw new NotFoundException(`Không tìm thấy lớp học để xóa (ID: ${id})`);
+    }
+
+    // Kiểm tra xem lớp có đang có phòng thi mở không
+    await checkActiveClassExams(this.examScheduleAssignmentsRepo, id);
+
     const result = await this.classRepo.delete(id);
     if (result.affected === 0) {
       throw new NotFoundException(`Không tìm thấy lớp học để xóa (ID: ${id})`);

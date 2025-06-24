@@ -126,13 +126,13 @@ export class AccountController {
     try {
       // Lấy thông tin tài khoản trước khi xóa
       const account = await this.accountService.getAccountInfoById(Number(id));
-      
+
       // Thực hiện xóa
       await this.accountService.deleteAccountById(Number(id));
-      
-      return { 
+
+      return {
         message: 'Xóa tài khoản thành công',
-        data: account // Trả về thông tin tài khoản đã xóa
+        data: account, // Trả về thông tin tài khoản đã xóa
       };
     } catch (error) {
       throw new HttpException(
@@ -164,7 +164,11 @@ export class AccountController {
 
   @Post('activate')
   @HttpCode(HttpStatus.OK)
-  @ActivityLog({ action: 'ACTIVATE', module: 'account', description: 'đã kích hoạt tài khoản' })
+  @ActivityLog({
+    action: 'ACTIVATE',
+    module: 'account',
+    description: 'đã kích hoạt tài khoản',
+  })
   async activate(
     @Body() dto: ActivateAccountDto,
   ): Promise<{ message: string }> {
@@ -179,7 +183,11 @@ export class AccountController {
   @Post('/import')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:create')
-  @ActivityLog({ action: 'IMPORT', module: 'account', description: 'đã import tài khoản từ file' })
+  @ActivityLog({
+    action: 'IMPORT',
+    module: 'account',
+    description: 'đã import tài khoản từ file',
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -237,7 +245,11 @@ export class AccountController {
   @Post('/export')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('account:view')
-  @ActivityLog({ action: 'EXPORT', module: 'account', description: 'đã export danh sách tài khoản' })
+  @ActivityLog({
+    action: 'EXPORT',
+    module: 'account',
+    description: 'đã export danh sách tài khoản',
+  })
   async exportAccounts(
     @Body() body: { accounts: AccountDto[] },
     @Query('format') format: 'excel' | 'csv',

@@ -30,6 +30,11 @@ export class CreateExamDto {
   subjectId: number;
 
   @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  maxScore?: number;
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @Type(() => Number)

@@ -62,6 +62,12 @@ export class ExamScheduleAssignmentController {
     return this.assignmentService.findAll();
   }
 
+  @Get('class/:classId/open-exams')
+  @UseGuards(JwtAuthGuard)
+  getOpenExamsByClass(@Param('classId', ParseIntPipe) classId: number) {
+    return this.assignmentService.getOpenExamsByClassId(classId);
+  }
+
   @Get('system-status')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('room:view')
@@ -95,13 +101,13 @@ export class ExamScheduleAssignmentController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     // Lấy thông tin phòng thi trước khi xóa
     const assignment = await this.assignmentService.findOne(id);
-    
+
     // Thực hiện xóa
     await this.assignmentService.remove(id);
-    
-    return { 
+
+    return {
       message: 'Phòng thi đã được xóa thành công',
-      data: assignment // Trả về thông tin phòng thi đã xóa
+      data: assignment, // Trả về thông tin phòng thi đã xóa
     };
   }
 

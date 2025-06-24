@@ -5,6 +5,9 @@ import {
   IsOptional,
   IsEnum,
   MaxLength,
+  IsArray,
+  ArrayMinSize,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateExamScheduleDto {
@@ -31,4 +34,10 @@ export class CreateExamScheduleDto {
 
   @IsNotEmpty()
   subjectId: number;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @ArrayMinSize(1, { message: 'Phải có ít nhất 1 lớp học' })
+  @IsOptional()
+  classIds?: number[];
 }

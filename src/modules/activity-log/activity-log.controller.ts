@@ -131,10 +131,20 @@ export class ActivityLogController {
    */
   private formatDisplayMessage(activity: any): string {
     const accountName = activity.account?.accountname || 'Người dùng';
+    const timestamp = activity.createdAt 
+      ? new Date(activity.createdAt).toLocaleString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }) 
+      : '';
 
     // Nếu có description sẵn, sử dụng nó
     if (activity.description) {
-      return `Người dùng ${accountName} ${activity.description}`;
+      return `Người dùng ${accountName} ${activity.description} vào ${timestamp}`;
     }
 
     // Tạo description từ action và module
@@ -143,6 +153,6 @@ export class ActivityLogController {
       activity.module,
       activity.targetName,
     );
-    return `${accountName} ${description}`;
+    return `${accountName} ${description} vào ${timestamp}`;
   }
 }

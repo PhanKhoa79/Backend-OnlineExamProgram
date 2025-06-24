@@ -243,13 +243,8 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
     // tìm account có mã khớp và chưa hết hạn
     const acct = await this.accountRepository.findByCodeResetPassword(dto.code);
-    if (
-      !acct ||
-      !acct.resetPasswordExpiresAt ||
-      acct.resetPasswordExpiresAt < new Date()
-    ) {
-      throw new BadRequestException('Mã xác thực không hợp lệ hoặc đã hết hạn');
-    }
+    if (!acct) throw new BadRequestException('Mã xác thực không hợp lệ');
+
     // hash mật khẩu mới & xoá code
     acct.password = await bcrypt.hash(dto.newPassword, 10);
     acct.resetPasswordCode = null;

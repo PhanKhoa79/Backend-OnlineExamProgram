@@ -4,6 +4,8 @@ import {
   IsDateString,
   IsEnum,
   MaxLength,
+  IsArray,
+  IsNumber,
 } from 'class-validator';
 
 export class UpdateExamScheduleDto {
@@ -30,4 +32,9 @@ export class UpdateExamScheduleDto {
 
   @IsOptional()
   subjectId?: number;
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  classIds?: number[];
 }

@@ -47,7 +47,11 @@ export class QuestionsController {
   @Post('bulk')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('question:create')
-  @ActivityLog({ action: 'CREATE', module: 'question', description: 'đã tạo nhiều câu hỏi' })
+  @ActivityLog({
+    action: 'CREATE',
+    module: 'question',
+    description: 'đã tạo nhiều câu hỏi',
+  })
   async createMany(@Body() dto: CreateManyQuestionDto): Promise<QuestionDto[]> {
     return this.questionsService.createMany(dto.questions);
   }
@@ -70,13 +74,13 @@ export class QuestionsController {
   async delete(@Param('id', ParseIntPipe) id: number) {
     // Lấy thông tin câu hỏi trước khi xóa
     const question = await this.questionsService.findById(id);
-    
+
     // Thực hiện xóa
     await this.questionsService.delete(id);
-    
-    return { 
+
+    return {
       message: 'Xóa câu hỏi thành công',
-      data: question // Trả về thông tin câu hỏi đã xóa
+      data: question, // Trả về thông tin câu hỏi đã xóa
     };
   }
 

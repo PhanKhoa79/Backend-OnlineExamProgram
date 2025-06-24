@@ -8,9 +8,13 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { Subjects } from './Subjects';
 import { ExamScheduleAssignments } from './ExamScheduleAssignments';
+import { Classes } from './Classes';
+
 @Index('exam_schedule_pkey', ['id'], { unique: true })
 @Entity('exam_schedule', { schema: 'public' })
 export class ExamSchedule {
@@ -57,4 +61,13 @@ export class ExamSchedule {
     (assignment) => assignment.examSchedule,
   )
   examScheduleAssignments: ExamScheduleAssignments[];
+
+  @ManyToMany(() => Classes)
+  @JoinTable({
+    name: 'exam_schedule_classes',
+    joinColumns: [{ name: 'exam_schedule_id', referencedColumnName: 'id' }],
+    inverseJoinColumns: [{ name: 'class_id', referencedColumnName: 'id' }],
+    schema: 'public',
+  })
+  classes: Classes[];
 }

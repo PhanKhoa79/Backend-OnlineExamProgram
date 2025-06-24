@@ -4,11 +4,13 @@ import { ExamScheduleAssignments } from '../../database/entities/ExamScheduleAss
 import { ExamScheduleAssignmentService } from './exam-schedule-assignment.service';
 import { ExamScheduleAssignmentController } from './exam-schedule-assignment.controller';
 import { ExamScheduleModule } from '../exam-schedule/exam-schedule.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ExamScheduleAssignments]),
     forwardRef(() => ExamScheduleModule),
+    forwardRef(() => NotificationModule),
   ],
   controllers: [ExamScheduleAssignmentController],
   providers: [ExamScheduleAssignmentService],

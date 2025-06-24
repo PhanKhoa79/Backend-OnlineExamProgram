@@ -19,6 +19,8 @@ import { Response } from 'express';
 import * as fs from 'fs';
 import * as csv from 'csv-parser';
 import { RedisService } from '../../modules/redis/redis.service';
+import { checkActiveStudentExams } from '../../common/utils/exam-validation.util';
+import { StudentExamSessions } from 'src/database/entities/StudentExamSessions';
 
 @Injectable()
 export class StudentService {
@@ -35,6 +37,8 @@ export class StudentService {
     private readonly redisService: RedisService,
     @InjectRepository(Classes)
     private readonly classRepo: Repository<Classes>,
+    @InjectRepository(StudentExamSessions)
+    private readonly studentExamSessionsRepo: Repository<StudentExamSessions>,
   ) {}
 
   /**
@@ -241,6 +245,14 @@ export class StudentService {
       throw new NotFoundException(`Student với id ${id} không tồn tại`);
     }
 
+    // Nếu student có account, kiểm tra xem học sinh có đang thi không
+    if (student.account) {
+      await checkActiveStudentExams(
+        this.studentExamSessionsRepo,
+        student.account.id,
+      );
+    }
+
     // Nếu chỉ update account
     if (updateData.account) {
       student.account = updateData.account;
@@ -259,11 +271,19 @@ export class StudentService {
   async update(id: number, dto: UpdateStudentDto): Promise<Students> {
     const student = await this.studentRepository.findOne({
       where: { id },
-      relations: ['class'],
+      relations: ['class', 'account'],
     });
 
     if (!student) {
       throw new NotFoundException(`Không tìm thấy sinh viên ID ${id}`);
+    }
+
+    // Nếu student có account, kiểm tra xem học sinh có đang thi không
+    if (student.account) {
+      await checkActiveStudentExams(
+        this.studentExamSessionsRepo,
+        student.account.id,
+      );
     }
 
     if (dto.classId !== undefined) {
@@ -418,12 +438,20 @@ export class StudentService {
   async delete(id: number): Promise<void> {
     const student = await this.studentRepository.findOne({
       where: { id },
-      relations: ['class'],
+      relations: ['class', 'account'],
     });
 
     if (!student) {
       throw new NotFoundException(
         `Không tìm thấy sinh viên để xóa (ID: ${id})`,
+      );
+    }
+
+    // Nếu student có account, kiểm tra xem học sinh có đang thi không
+    if (student.account) {
+      await checkActiveStudentExams(
+        this.studentExamSessionsRepo,
+        student.account.id,
       );
     }
 

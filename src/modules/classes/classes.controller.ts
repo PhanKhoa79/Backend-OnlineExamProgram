@@ -56,13 +56,13 @@ export class ClassesController {
     // Lấy thông tin lớp trước khi xóa
     const classEntity = await this.classesService.findById(id);
     const classData = ClassMapper.toResponseDto(classEntity);
-    
+
     // Thực hiện xóa
     await this.classesService.delete(id);
-    
-    return { 
+
+    return {
       message: 'Xóa lớp học thành công',
-      data: classData // Trả về thông tin lớp đã xóa để interceptor lấy được
+      data: classData, // Trả về thông tin lớp đã xóa để interceptor lấy được
     };
   }
 

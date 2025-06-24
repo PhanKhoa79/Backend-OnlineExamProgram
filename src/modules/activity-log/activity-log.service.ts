@@ -74,7 +74,17 @@ export class ActivityLogService {
    */
   private formatDisplayMessage(activityLog: ActivityLogs): string {
     const userName = activityLog.account?.accountname || 'Hệ thống';
-    return `Người dùng ${userName} ${activityLog.description}`;
+    const timestamp = activityLog.createdAt 
+      ? new Date(activityLog.createdAt).toLocaleString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }) 
+      : '';
+    return `Người dùng ${userName} ${activityLog.description} vào ${timestamp}`;
   }
 
   /**
@@ -83,7 +93,9 @@ export class ActivityLogService {
   private async invalidateCache(): Promise<void> {
     try {
       // Xóa cache recent activities
-      const recentKeys = await this.redisService.keys(`${this.CACHE_KEYS.RECENT_ACTIVITIES}*`);
+      const recentKeys = await this.redisService.keys(
+        `${this.CACHE_KEYS.RECENT_ACTIVITIES}*`,
+      );
       for (const key of recentKeys) {
         await this.redisService.del(key);
       }
@@ -92,35 +104,45 @@ export class ActivityLogService {
       await this.redisService.del(this.CACHE_KEYS.ALL_ACTIVITIES);
 
       // Xóa cache by account
-      const accountKeys = await this.redisService.keys(`${this.CACHE_KEYS.BY_ACCOUNT}*`);
+      const accountKeys = await this.redisService.keys(
+        `${this.CACHE_KEYS.BY_ACCOUNT}*`,
+      );
       for (const key of accountKeys) {
         await this.redisService.del(key);
       }
 
       // Xóa cache by module
-      const moduleKeys = await this.redisService.keys(`${this.CACHE_KEYS.BY_MODULE}*`);
+      const moduleKeys = await this.redisService.keys(
+        `${this.CACHE_KEYS.BY_MODULE}*`,
+      );
       for (const key of moduleKeys) {
         await this.redisService.del(key);
       }
 
       // Xóa cache pagination
-      const paginationKeys = await this.redisService.keys(`${this.CACHE_KEYS.PAGINATION}*`);
+      const paginationKeys = await this.redisService.keys(
+        `${this.CACHE_KEYS.PAGINATION}*`,
+      );
       for (const key of paginationKeys) {
         await this.redisService.del(key);
       }
     } catch (error) {
-      this.logger.error(`Error invalidating cache: ${(error as Error).message}`);
+      this.logger.error(
+        `Error invalidating cache: ${(error as Error).message}`,
+      );
     }
   }
 
   async getRecentActivities(limit: number = 10): Promise<ActivityLogs[]> {
     const cacheKey = `${this.CACHE_KEYS.RECENT_ACTIVITIES}${limit}`;
-    
+
     try {
       // Kiểm tra cache trước
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
-        this.logger.debug(`Cache hit for recent activities with limit ${limit}`);
+        this.logger.debug(
+          `Cache hit for recent activities with limit ${limit}`,
+        );
         return JSON.parse(cached) as ActivityLogs[];
       }
     } catch (error) {
@@ -143,7 +165,9 @@ export class ActivityLogService {
       );
       this.logger.debug(`Cached recent activities with limit ${limit}`);
     } catch (error) {
-      this.logger.warn(`Failed to cache activities: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to cache activities: ${(error as Error).message}`,
+      );
     }
 
     return activities;
@@ -151,7 +175,7 @@ export class ActivityLogService {
 
   async getAllActivities(): Promise<ActivityLogs[]> {
     const cacheKey = this.CACHE_KEYS.ALL_ACTIVITIES;
-    
+
     try {
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
@@ -175,7 +199,9 @@ export class ActivityLogService {
       );
       this.logger.debug('Cached all activities');
     } catch (error) {
-      this.logger.warn(`Failed to cache all activities: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to cache all activities: ${(error as Error).message}`,
+      );
     }
 
     return activities;
@@ -215,11 +241,13 @@ export class ActivityLogService {
     limit: number;
   }> {
     const cacheKey = `${this.CACHE_KEYS.PAGINATION}${page}_${limit}`;
-    
+
     try {
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
-        this.logger.debug(`Cache hit for pagination: page ${page}, limit ${limit}`);
+        this.logger.debug(
+          `Cache hit for pagination: page ${page}, limit ${limit}`,
+        );
         return JSON.parse(cached) as {
           data: ActivityLogs[];
           total: number;
@@ -253,7 +281,9 @@ export class ActivityLogService {
       );
       this.logger.debug(`Cached pagination: page ${page}, limit ${limit}`);
     } catch (error) {
-      this.logger.warn(`Failed to cache pagination: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to cache pagination: ${(error as Error).message}`,
+      );
     }
 
     return result;

@@ -28,6 +28,6 @@ export class StudentRepository extends Repository<Students> {
   }
 
   async findByEmail(email: string): Promise<Students | null> {
-    return this.findOne({ where: { email } });
+    return this.findOne({ where: { email }, relations: ['class'] });
   }
 }

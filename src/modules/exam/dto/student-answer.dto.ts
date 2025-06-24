@@ -1,0 +1,46 @@
+import { IsNotEmpty, IsOptional, IsNumber, IsBoolean } from 'class-validator';
+
+export class SaveStudentAnswerDto {
+  @IsNotEmpty()
+  @IsNumber()
+  studentExamId: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  questionId: number;
+
+  @IsOptional()
+  @IsNumber()
+  answerId?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isMarked?: boolean;
+}
+
+export class StudentAnswerResponseDto {
+  studentExamId: number;
+  questionId: number;
+  answerId: number | null;
+  answeredAt: Date | null;
+  isMarked: boolean;
+}
+
+export class StartExamDto {
+  @IsNotEmpty()
+  @IsNumber()
+  examId: number;
+
+  @IsNotEmpty()
+  @IsNumber()
+  studentId: number;
+}
+
+export class StartExamResponseDto {
+  studentExamId: number;
+  examId: number;
+  studentId: number;
+  startedAt: Date | null;
+  questions: any[];
+  existingAnswers: StudentAnswerResponseDto[];
+}

@@ -55,6 +55,18 @@ export class ExamScheduleController {
     return this.examScheduleService.findAll();
   }
 
+  @Get('class/:classId')
+  @UseGuards(JwtAuthGuard)
+  findByClassId(@Param('classId', ParseIntPipe) classId: number) {
+    return this.examScheduleService.findByClassId(classId);
+  }
+
+  @Get(':id/classes')
+  @UseGuards(JwtAuthGuard)
+  getClasses(@Param('id', ParseIntPipe) id: number) {
+    return this.examScheduleService.getClassesByScheduleId(id);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('schedule:view')
@@ -81,13 +93,13 @@ export class ExamScheduleController {
   async remove(@Param('id', ParseIntPipe) id: number) {
     // Lấy thông tin lịch thi trước khi xóa
     const schedule = await this.examScheduleService.findOne(id);
-    
+
     // Thực hiện xóa
     await this.examScheduleService.remove(id);
-    
-    return { 
+
+    return {
       message: 'Lịch thi đã được xóa thành công',
-      data: schedule // Trả về thông tin lịch thi đã xóa
+      data: schedule, // Trả về thông tin lịch thi đã xóa
     };
   }
 

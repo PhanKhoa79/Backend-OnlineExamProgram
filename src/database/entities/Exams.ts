@@ -38,6 +38,15 @@ export class Exams {
   @Column('integer', { name: 'total_questions', nullable: true })
   totalQuestions: number | null;
 
+  @Column('decimal', {
+    name: 'max_score',
+    precision: 5,
+    scale: 2,
+    default: 10,
+    comment: 'Điểm tối đa của bài thi',
+  })
+  maxScore: number;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date | null;
 

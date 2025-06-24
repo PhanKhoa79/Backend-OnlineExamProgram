@@ -153,13 +153,13 @@ export class StudentController {
   ): Promise<{ message: string; data?: any }> {
     // Lấy thông tin sinh viên trước khi xóa
     const student = await this.studentService.findById(id);
-    
+
     // Thực hiện xóa
     await this.studentService.delete(id);
-    
-    return { 
+
+    return {
       message: 'Xóa sinh viên thành công',
-      data: StudentMapper.toResponseDto(student) // Trả về thông tin sinh viên đã xóa
+      data: StudentMapper.toResponseDto(student), // Trả về thông tin sinh viên đã xóa
     };
   }
 

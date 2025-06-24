@@ -31,6 +31,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { ActivityLogModule } from './modules/activity-log/activity-log.module';
 import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { ReportModule } from './modules/report/report.module';
 
 const modules = [
   AuthModule,
@@ -51,6 +52,7 @@ const modules = [
   WebsocketModule,
   NotificationModule,
   ActivityLogModule,
+  ReportModule,
 ];
 
 @Module({
@@ -101,6 +103,11 @@ export class AppModule implements NestModule {
         { path: 'auth/verify-reset-code', method: RequestMethod.POST },
         { path: 'auth/logout', method: RequestMethod.POST },
         { path: 'auth/request-activation', method: RequestMethod.POST },
+        {
+          path: 'auth/verify-activation-token/(.*)',
+          method: RequestMethod.GET,
+        },
+        { path: 'auth/find-email-by-token/(.*)', method: RequestMethod.GET}
       )
       .forRoutes('*');
   }
