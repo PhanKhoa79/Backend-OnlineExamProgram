@@ -1,69 +1,92 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ReportService } from './report.service';
+import {
+  AnalyticsSummaryQueryDto,
+  ScoreTrendsQueryDto,
+  SubjectPerformanceQueryDto,
+  ScoreDistributionQueryDto,
+  ExamVolumeQueryDto,
+  ScoreStatisticsQueryDto,
+  TopStudentsQueryDto,
+  FailingStudentsQueryDto,
+} from './dto/analytics.dto';
+import {
+  AnalyticsSummaryResponse,
+  ScoreTrendsResponse,
+  SubjectPerformanceResponse,
+  ScoreDistributionResponse,
+  ExamVolumeResponseDto,
+  ScoreStatisticsResponseDto,
+  TopStudentsResponseDto,
+  FailingStudentsResponseDto,
+} from './dto/analytics-response.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@Controller('reports')
+@Controller('analytics')
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}
 
-  @Get('overview')
-  async getOverviewReport(
-    @Query('examId') examId?: string,
-    @Query('isPractice') isPractice?: string,
-  ) {
-    return this.reportService.getOverviewReport(
-      examId ? parseInt(examId, 10) : undefined,
-      isPractice !== undefined ? isPractice === 'true' : undefined,
-    );
+  @Get('summary')
+  @UseGuards(JwtAuthGuard)
+  async getAnalyticsSummary(
+    @Query() query: AnalyticsSummaryQueryDto,
+  ): Promise<AnalyticsSummaryResponse> {
+    return this.reportService.getAnalyticsSummary(query);
   }
 
-  @Get('practice-vs-real')
-  async getPracticeVsRealComparison() {
-    return this.reportService.getPracticeVsRealComparison();
+  @Get('score-trends')
+  @UseGuards(JwtAuthGuard)
+  async getScoreTrends(
+    @Query() query: ScoreTrendsQueryDto,
+  ): Promise<ScoreTrendsResponse> {
+    return this.reportService.getScoreTrends(query);
   }
 
-  @Get('question-analysis')
-  async getQuestionAnalysisReport(@Query('examId') examId: string) {
-    return this.reportService.getQuestionAnalysisReport(parseInt(examId, 10));
+  @Get('subject-performance')
+  @UseGuards(JwtAuthGuard)
+  async getSubjectPerformance(
+    @Query() query: SubjectPerformanceQueryDto,
+  ): Promise<SubjectPerformanceResponse> {
+    return this.reportService.getSubjectPerformance(query);
   }
 
-  @Get('low-scoring-students')
-  async getLowScoringStudentsReport(
-    @Query('examId') examId: string,
-    @Query('threshold') threshold?: string,
-  ) {
-    return this.reportService.getLowScoringStudentsReport(
-      parseInt(examId, 10),
-      threshold ? parseFloat(threshold) : 5,
-    );
+  @Get('score-distribution')
+  @UseGuards(JwtAuthGuard)
+  async getScoreDistribution(
+    @Query() query: ScoreDistributionQueryDto,
+  ): Promise<ScoreDistributionResponse> {
+    return this.reportService.getScoreDistribution(query);
   }
 
-  @Get('class-comparison')
-  async getClassComparisonReport(@Query('examId') examId?: string) {
-    return this.reportService.getClassComparisonReport(
-      examId ? parseInt(examId, 10) : undefined,
-    );
+  @Get('exam-volume')
+  @UseGuards(JwtAuthGuard)
+  async getExamVolume(
+    @Query() query: ExamVolumeQueryDto,
+  ): Promise<ExamVolumeResponseDto> {
+    return this.reportService.getExamVolume(query);
   }
 
-  @Get('basic-stats')
-  async getBasicStatsReport(
-    @Query('classId') classId?: string,
-    @Query('isPractice') isPractice?: string,
-  ) {
-    return this.reportService.getBasicStatsReport(
-      classId ? parseInt(classId, 10) : undefined,
-      isPractice !== undefined ? isPractice === 'true' : undefined,
-    );
+  @Get('score-statistics')
+  @UseGuards(JwtAuthGuard)
+  async getScoreStatistics(
+    @Query() query: ScoreStatisticsQueryDto,
+  ): Promise<ScoreStatisticsResponseDto> {
+    return this.reportService.getScoreStatistics(query);
   }
 
-  /* @Get('trend-over-time')
-  async getTrendOverTimeReport(@Query('classId') classId?: string) {
-    return this.reportService.getTrendOverTimeReport(
-      classId ? parseInt(classId, 10) : undefined,
-    );
-  } */
+  @Get('top-students')
+  @UseGuards(JwtAuthGuard)
+  async getTopStudents(
+    @Query() query: TopStudentsQueryDto,
+  ): Promise<TopStudentsResponseDto> {
+    return this.reportService.getTopStudents(query);
+  }
 
-  @Get('exam-quality')
-  async getExamQualityReport(@Query('examId') examId: string) {
-    return this.reportService.getExamQualityReport(parseInt(examId, 10));
+  @Get('failing-students')
+  @UseGuards(JwtAuthGuard)
+  async getFailingStudents(
+    @Query() query: FailingStudentsQueryDto,
+  ): Promise<FailingStudentsResponseDto> {
+    return this.reportService.getFailingStudents(query);
   }
 }

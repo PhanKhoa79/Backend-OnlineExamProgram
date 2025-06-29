@@ -10,12 +10,16 @@ import {
   UseGuards,
   Query,
   Res,
+  HttpException,
+  HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ExamService } from './exam.service';
 import { CreateExamDto } from './dto/create-exam.dto';
 import { UpdateExamDto } from './dto/update-exam.dto';
 import { StartExamDto, SaveStudentAnswerDto } from './dto/student-answer.dto';
+import { StudentExamResultsFilterDto } from './dto/student-exam-results-filter.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
@@ -251,5 +255,42 @@ export class ExamController {
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await this.examService.getAllCompletedExams(studentId);
+  }
+
+  @Post('student-results')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('exam:view')
+  async getStudentExamResults(
+    @Body() body?: StudentExamResultsFilterDto,
+  ): Promise<any[]> {
+    const filters: any = {};
+
+    if (body?.classId) {
+      filters.classId = body.classId;
+    }
+
+    if (body?.subjectId) {
+      filters.subjectId = body.subjectId;
+    }
+
+    if (body?.examType) {
+      filters.examType = body.examType;
+    }
+
+    if (body?.specificDate) {
+      filters.specificDate = body.specificDate;
+    }
+
+    if (body?.startDate) {
+      filters.startDate = body.startDate;
+    }
+
+    if (body?.endDate) {
+      filters.endDate = body.endDate;
+    }
+
+    return await this.examService.getStudentExamResults(
+      Object.keys(filters).length > 0 ? filters : undefined,
+    );
   }
 }

@@ -15,6 +15,7 @@ import { ExamScheduleService } from '../exam-schedule/exam-schedule.service';
 import { NotificationService } from '../notification/notification.service';
 import { Exams } from '../../database/entities/Exams';
 import { In } from 'typeorm';
+import { RoomStatusDto } from './dto/room-status.dto';
 
 @Injectable()
 export class ExamScheduleAssignmentService {
@@ -763,5 +764,36 @@ export class ExamScheduleAssignmentService {
         'Không thể lấy danh sách phòng thi đang mở',
       );
     }
+  }
+
+  async getRoomStatus(id: number): Promise<RoomStatusDto> {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id },
+      relations: ['exam', 'examSchedule', 'class', 'examSchedule.subject'],
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(`Không tìm thấy phòng thi với ID ${id}`);
+    }
+
+    let message = '';
+
+    switch (assignment.status) {
+      case 'waiting':
+        message = 'Phòng thi chưa mở';
+        break;
+      case 'open':
+        message = `Phòng thi đang mở, môn ${assignment.examSchedule?.subject?.name || 'không xác định'}`;
+        break;
+      case 'closed':
+        message = 'Phòng thi đã đóng';
+        break;
+    }
+
+    return {
+      id: assignment.id,
+      status: assignment.status,
+      message,
+    };
   }
 }

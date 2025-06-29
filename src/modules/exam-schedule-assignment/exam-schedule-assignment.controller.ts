@@ -23,6 +23,7 @@ import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../../modules/auth/decorator/permissions.decotator';
 import { ExamScheduleAssignments } from 'src/database/entities/ExamScheduleAssignments';
 import { ActivityLog } from '../../common/decorators/activity-log.decorator';
+import { RoomStatusDto } from './dto/room-status.dto';
 
 @Controller('exam-schedule-assignments')
 export class ExamScheduleAssignmentController {
@@ -168,5 +169,13 @@ export class ExamScheduleAssignmentController {
       assignmentId,
       studentIds,
     );
+  }
+
+  @Get(':id/status')
+  @UseGuards(JwtAuthGuard)
+  async getRoomStatus(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<RoomStatusDto> {
+    return this.assignmentService.getRoomStatus(id);
   }
 }

@@ -34,12 +34,17 @@ export class StartExamDto {
   @IsNotEmpty()
   @IsNumber()
   studentId: number;
+
+  @IsOptional()
+  @IsNumber()
+  assignmentId?: number;
 }
 
 export class StartExamResponseDto {
   studentExamId: number;
   examId: number;
   studentId: number;
+  assignmentId: number | null;
   startedAt: Date | null;
   questions: any[];
   existingAnswers: StudentAnswerResponseDto[];

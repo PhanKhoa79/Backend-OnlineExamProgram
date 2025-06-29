@@ -39,6 +39,13 @@ export class ExamService {
     EXAM_QUESTIONS: 'exam_questions_',
     EXAM_BY_TYPE: 'exam_by_type_',
     STUDENT_PRACTICE_PROGRESS: 'student_practice_progress_',
+    STUDENT_EXAM_RESULTS: 'student_exam_results_',
+    EXAM_RESULT: 'exam_result_',
+    STUDENT_EXAM_RESULT: 'student_exam_result_',
+    ALL_STUDENT_RESULTS_FOR_EXAM: 'all_student_results_for_exam_',
+    ALL_COMPLETED_EXAMS: 'all_completed_exams_',
+    COMPLETED_PRACTICE_EXAMS: 'completed_practice_exams_',
+    IN_PROGRESS_PRACTICE_EXAMS: 'in_progress_practice_exams_',
   };
   private readonly CACHE_TTL = 600; // 10 phút (giây)
 
@@ -69,6 +76,75 @@ export class ExamService {
 
     private readonly redisService: RedisService,
   ) {}
+
+  /**
+   * 🔥 THÊM: Helper method để xóa cache liên quan đến student exam results
+   */
+  private async invalidateStudentExamCache(
+    studentId: number,
+    examId: number,
+    studentExamId?: number,
+  ): Promise<void> {
+    try {
+      const cacheKeysToDelete: string[] = [];
+
+      // Cache keys cụ thể
+      cacheKeysToDelete.push(
+        `${this.CACHE_KEYS.STUDENT_PRACTICE_PROGRESS}${studentId}`,
+        `${this.CACHE_KEYS.IN_PROGRESS_PRACTICE_EXAMS}${studentId}`,
+        `${this.CACHE_KEYS.COMPLETED_PRACTICE_EXAMS}${studentId}`,
+        `${this.CACHE_KEYS.ALL_COMPLETED_EXAMS}${studentId}`,
+        `${this.CACHE_KEYS.ALL_STUDENT_RESULTS_FOR_EXAM}${examId}`,
+        `${this.CACHE_KEYS.STUDENT_EXAM_RESULT}${examId}_${studentId}`,
+      );
+
+      if (studentExamId) {
+        cacheKeysToDelete.push(
+          `${this.CACHE_KEYS.EXAM_RESULT}${studentExamId}`,
+        );
+      }
+
+      // Lấy tất cả cache keys với pattern
+      const [
+        examResultKeys,
+        studentExamResultKeys,
+        allStudentResultsKeys,
+        studentExamResultsKeys,
+      ] = await Promise.all([
+        this.redisService.keys(`${this.CACHE_KEYS.EXAM_RESULT}*`),
+        this.redisService.keys(`${this.CACHE_KEYS.STUDENT_EXAM_RESULT}*`),
+        this.redisService.keys(
+          `${this.CACHE_KEYS.ALL_STUDENT_RESULTS_FOR_EXAM}*`,
+        ),
+        this.redisService.keys(`${this.CACHE_KEYS.STUDENT_EXAM_RESULTS}*`),
+      ]);
+
+      // Kết hợp tất cả cache keys
+      const allKeysToDelete = [
+        ...cacheKeysToDelete,
+        ...examResultKeys,
+        ...studentExamResultKeys,
+        ...allStudentResultsKeys,
+        ...studentExamResultsKeys,
+      ];
+
+      // Xóa tất cả cache keys parallel
+      if (allKeysToDelete.length > 0) {
+        await Promise.all(
+          allKeysToDelete.map((key) => this.redisService.del(key)),
+        );
+      }
+
+      this.logger.log(
+        `Student exam cache invalidated: removed ${allKeysToDelete.length} cache entries for student ${studentId}, exam ${examId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to invalidate student exam cache: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+    }
+  }
 
   /**
    * Xóa cache khi có thay đổi dữ liệu
@@ -110,6 +186,62 @@ export class ExamService {
           `${this.CACHE_KEYS.EXAM_BY_TYPE}*`,
         );
         for (const cacheKey of typeCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache kết quả thi của sinh viên
+        const studentResultsCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.STUDENT_EXAM_RESULTS}*`,
+        );
+        for (const cacheKey of studentResultsCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache kết quả thi chi tiết
+        const examResultCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.EXAM_RESULT}*`,
+        );
+        for (const cacheKey of examResultCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache kết quả thi của sinh viên theo đề thi
+        const studentExamResultCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.STUDENT_EXAM_RESULT}*`,
+        );
+        for (const cacheKey of studentExamResultCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache tất cả kết quả của đề thi
+        const allStudentResultsCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.ALL_STUDENT_RESULTS_FOR_EXAM}*`,
+        );
+        for (const cacheKey of allStudentResultsCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache đề thi đã hoàn thành
+        const allCompletedExamsCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.ALL_COMPLETED_EXAMS}*`,
+        );
+        for (const cacheKey of allCompletedExamsCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache đề practice đã hoàn thành
+        const completedPracticeExamsCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.COMPLETED_PRACTICE_EXAMS}*`,
+        );
+        for (const cacheKey of completedPracticeExamsCacheKeys) {
+          await this.redisService.del(cacheKey);
+        }
+
+        // Xóa cache đề practice đang làm dở
+        const inProgressPracticeExamsCacheKeys = await this.redisService.keys(
+          `${this.CACHE_KEYS.IN_PROGRESS_PRACTICE_EXAMS}*`,
+        );
+        for (const cacheKey of inProgressPracticeExamsCacheKeys) {
           await this.redisService.del(cacheKey);
         }
       }
@@ -1117,8 +1249,9 @@ export class ExamService {
   async submitStudentExam(studentExamId: number): Promise<StudentExams> {
     const score = await this.calculateStudentScore(studentExamId);
 
-    const studentExam = await this.studentExamRepo.findOneBy({
-      id: studentExamId,
+    const studentExam = await this.studentExamRepo.findOne({
+      where: { id: studentExamId },
+      relations: ['student', 'exam'],
     });
 
     if (!studentExam) {
@@ -1134,9 +1267,21 @@ export class ExamService {
 
     const updatedStudentExam = await this.studentExamRepo.save(studentExam);
 
-    // Xóa cache tiến độ luyện tập của học sinh sau khi nộp bài
-    const studentProgressCacheKey = `${this.CACHE_KEYS.STUDENT_PRACTICE_PROGRESS}${studentExam.student?.id || 'unknown'}`;
-    await this.invalidateCache(studentProgressCacheKey);
+    // 🔥 Sử dụng helper method để xóa cache toàn diện
+    const studentIdKey = studentExam.student?.id;
+    const examIdKey = studentExam.exam?.id;
+
+    if (studentIdKey && examIdKey) {
+      await this.invalidateStudentExamCache(
+        studentIdKey,
+        examIdKey,
+        updatedStudentExam.id,
+      );
+    } else {
+      this.logger.warn(
+        `Missing student or exam ID for cache invalidation: studentId=${studentIdKey}, examId=${examIdKey}`,
+      );
+    }
 
     return updatedStudentExam;
   }
@@ -1145,7 +1290,7 @@ export class ExamService {
    * Bắt đầu làm bài thi - tạo hoặc lấy StudentExam hiện có
    */
   async startExam(startExamDto: StartExamDto): Promise<StartExamResponseDto> {
-    const { examId, studentId } = startExamDto;
+    const { examId, studentId, assignmentId } = startExamDto;
 
     // Kiểm tra exam có tồn tại không
     const exam = await this.examRepo.findOne({
@@ -1202,6 +1347,7 @@ export class ExamService {
       studentExamId: studentExam.id,
       examId: exam.id,
       studentId: student.id,
+      assignmentId: assignmentId || null,
       startedAt: studentExam.startedAt,
       questions: exam.questions,
       existingAnswers: existingAnswersDto,
@@ -1217,10 +1363,13 @@ export class ExamService {
   ): Promise<StudentAnswerResponseDto> {
     const { studentExamId, questionId, answerId, isMarked } = saveAnswerDto;
 
-    // Kiểm tra StudentExam có tồn tại và chưa nộp bài
-    const studentExam = await this.studentExamRepo.findOneBy({
-      id: studentExamId,
-      isSubmitted: false,
+    // Kiểm tra StudentExam có tồn tại và chưa nộp bài (với relations để lấy student info)
+    const studentExam = await this.studentExamRepo.findOne({
+      where: {
+        id: studentExamId,
+        isSubmitted: false,
+      },
+      relations: ['student'],
     });
 
     if (!studentExam) {
@@ -1254,6 +1403,21 @@ export class ExamService {
     }
 
     const savedAnswer = await this.studentAnswerRepo.save(studentAnswer);
+
+    // 🔥 Xóa cache tiến độ khi có thay đổi câu trả lời
+    const studentIdFromExam = studentExam.student?.id;
+    if (studentIdFromExam) {
+      try {
+        // Chỉ xóa cache tiến độ làm bài (in-progress) vì số câu đã trả lời thay đổi
+        await this.invalidateCache(
+          `${this.CACHE_KEYS.IN_PROGRESS_PRACTICE_EXAMS}${studentIdFromExam}`,
+        );
+      } catch (cacheError) {
+        this.logger.warn(
+          `Failed to invalidate progress cache: ${(cacheError as Error).message}`,
+        );
+      }
+    }
 
     return {
       studentExamId: savedAnswer.studentExamId,
@@ -1290,53 +1454,131 @@ export class ExamService {
    * @returns Danh sách đề thi đang làm dở với thông tin tiến độ
    */
   async getInProgressPracticeExams(studentId: number) {
-    // Kiểm tra student có tồn tại không
-    const student = await this.studentRepo.findOneBy({ id: studentId });
-    if (!student) {
-      throw new NotFoundException(`Student with ID ${studentId} not found`);
-    }
+    const cacheKey = `${this.CACHE_KEYS.IN_PROGRESS_PRACTICE_EXAMS}${studentId}`;
 
-    // Lấy các bài thi đang làm dở (có StudentExam nhưng chưa submit)
-    const inProgressExams = await this.studentExamRepo.find({
-      where: {
-        student: { id: studentId },
-        isSubmitted: false,
-      },
-      relations: ['exam', 'exam.subject', 'studentAnswers'],
-      order: {
-        startedAt: 'DESC',
-      },
-    });
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
 
-    // Chỉ lấy practice exams
-    const practiceExamsInProgress = inProgressExams.filter(
-      (studentExam) => studentExam.exam.examType === 'practice',
-    );
+      if (cachedData) {
+        this.logger.log(
+          `Cache hit for in-progress practice exams: ${cacheKey}`,
+        );
+        return JSON.parse(cachedData);
+      }
 
-    // Tính toán tiến độ cho mỗi bài thi
-    const result = practiceExamsInProgress.map((studentExam) => {
-      const totalQuestions = studentExam.exam.totalQuestions || 0;
-      const answeredQuestions = studentExam.studentAnswers.filter(
-        (answer) => answer.answerId !== null,
-      ).length;
-      const progressPercentage =
-        totalQuestions > 0
-          ? Math.round((answeredQuestions / totalQuestions) * 100)
-          : 0;
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(`Cache miss for in-progress practice exams: ${cacheKey}`);
 
-      return {
-        studentExamId: studentExam.id,
-        exam: studentExam.exam,
-        startedAt: studentExam.startedAt,
-        progress: {
-          totalQuestions,
-          answeredQuestions,
-          progressPercentage,
+      // Kiểm tra student có tồn tại không
+      const student = await this.studentRepo.findOneBy({ id: studentId });
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${studentId} not found`);
+      }
+
+      // Lấy các bài thi đang làm dở (có StudentExam nhưng chưa submit)
+      const inProgressExams = await this.studentExamRepo.find({
+        where: {
+          student: { id: studentId },
+          isSubmitted: false,
         },
-      };
-    });
+        relations: ['exam', 'exam.subject', 'studentAnswers'],
+        order: {
+          startedAt: 'DESC',
+        },
+      });
 
-    return result;
+      // Chỉ lấy practice exams
+      const practiceExamsInProgress = inProgressExams.filter(
+        (studentExam) => studentExam.exam.examType === 'practice',
+      );
+
+      // Tính toán tiến độ cho mỗi bài thi
+      const result = practiceExamsInProgress.map((studentExam) => {
+        const totalQuestions = studentExam.exam.totalQuestions || 0;
+        const answeredQuestions = studentExam.studentAnswers.filter(
+          (answer) => answer.answerId !== null,
+        ).length;
+        const progressPercentage =
+          totalQuestions > 0
+            ? Math.round((answeredQuestions / totalQuestions) * 100)
+            : 0;
+
+        return {
+          studentExamId: studentExam.id,
+          exam: studentExam.exam,
+          startedAt: studentExam.startedAt,
+          progress: {
+            totalQuestions,
+            answeredQuestions,
+            progressPercentage,
+          },
+        };
+      });
+
+      // Lưu vào cache với TTL ngắn hơn (2 phút) vì tiến độ có thể thay đổi thường xuyên
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(result),
+        120,
+      );
+
+      return result;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getInProgressPracticeExams: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const student = await this.studentRepo.findOneBy({ id: studentId });
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${studentId} not found`);
+      }
+
+      const inProgressExams = await this.studentExamRepo.find({
+        where: {
+          student: { id: studentId },
+          isSubmitted: false,
+        },
+        relations: ['exam', 'exam.subject', 'studentAnswers'],
+        order: {
+          startedAt: 'DESC',
+        },
+      });
+
+      const practiceExamsInProgress = inProgressExams.filter(
+        (studentExam) => studentExam.exam.examType === 'practice',
+      );
+
+      const result = practiceExamsInProgress.map((studentExam) => {
+        const totalQuestions = studentExam.exam.totalQuestions || 0;
+        const answeredQuestions = studentExam.studentAnswers.filter(
+          (answer) => answer.answerId !== null,
+        ).length;
+        const progressPercentage =
+          totalQuestions > 0
+            ? Math.round((answeredQuestions / totalQuestions) * 100)
+            : 0;
+
+        return {
+          studentExamId: studentExam.id,
+          exam: studentExam.exam,
+          startedAt: studentExam.startedAt,
+          progress: {
+            totalQuestions,
+            answeredQuestions,
+            progressPercentage,
+          },
+        };
+      });
+
+      return result;
+    }
   }
 
   /**
@@ -1345,69 +1587,159 @@ export class ExamService {
    * @returns Danh sách đề thi đã hoàn thành với điểm số và thời gian
    */
   async getCompletedPracticeExams(studentId: number) {
-    // Kiểm tra student có tồn tại không
-    const student = await this.studentRepo.findOneBy({ id: studentId });
-    if (!student) {
-      throw new NotFoundException(`Student with ID ${studentId} not found`);
-    }
+    const cacheKey = `${this.CACHE_KEYS.COMPLETED_PRACTICE_EXAMS}${studentId}`;
 
-    // Lấy các bài thi đã hoàn thành (đã submit)
-    const completedExams = await this.studentExamRepo.find({
-      where: {
-        student: { id: studentId },
-        isSubmitted: true,
-      },
-      relations: ['exam', 'exam.subject'],
-      order: {
-        submittedAt: 'DESC',
-      },
-    });
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
 
-    // Chỉ lấy practice exams
-    const practiceExamsCompleted = completedExams.filter(
-      (studentExam) => studentExam.exam.examType === 'practice',
-    );
+      if (cachedData) {
+        this.logger.log(`Cache hit for completed practice exams: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
 
-    // Format kết quả
-    const result = practiceExamsCompleted.map((studentExam) => {
-      const totalQuestions = studentExam.exam.totalQuestions || 0;
-      const maxScore = studentExam.exam.maxScore || 100;
-      const score = studentExam.score || 0;
-      const scorePercentage =
-        maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(`Cache miss for completed practice exams: ${cacheKey}`);
+
+      // Kiểm tra student có tồn tại không
+      const student = await this.studentRepo.findOneBy({ id: studentId });
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${studentId} not found`);
+      }
+
+      // Lấy các bài thi đã hoàn thành (đã submit)
+      const completedExams = await this.studentExamRepo.find({
+        where: {
+          student: { id: studentId },
+          isSubmitted: true,
+        },
+        relations: ['exam', 'exam.subject'],
+        order: {
+          submittedAt: 'DESC',
+        },
+      });
+
+      // Chỉ lấy practice exams
+      const practiceExamsCompleted = completedExams.filter(
+        (studentExam) => studentExam.exam.examType === 'practice',
+      );
+
+      // Format kết quả
+      const result = practiceExamsCompleted.map((studentExam) => {
+        const totalQuestions = studentExam.exam.totalQuestions || 0;
+        const maxScore = studentExam.exam.maxScore || 100;
+        const score = studentExam.score || 0;
+        const scorePercentage =
+          maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+        return {
+          studentExamId: studentExam.id,
+          exam: {
+            id: studentExam.exam.id,
+            name: studentExam.exam.name,
+            subject: studentExam.exam.subject,
+            duration: studentExam.exam.duration,
+            totalQuestions,
+            maxScore,
+          },
+          result: {
+            score,
+            scorePercentage,
+            startedAt: studentExam.startedAt,
+            submittedAt: studentExam.submittedAt,
+            timeTaken: this.calculateTimeTaken(
+              studentExam.startedAt || new Date(),
+              studentExam.submittedAt,
+            ),
+          },
+        };
+      });
+
+      const finalResult = {
+        studentId,
+        totalCompletedExams: result.length,
+        totalPracticeExams: result.length,
+        totalOfficialExams: 0,
+        completedExams: result,
+        practiceExams: result,
+        officialExams: [],
+      };
+
+      // Lưu vào cache với TTL ngắn hơn (5 phút) vì có thể có bài thi mới được hoàn thành
+      await this.redisService.set(cacheKey, JSON.stringify(finalResult), 300);
+
+      return finalResult;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getCompletedPracticeExams: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const student = await this.studentRepo.findOneBy({ id: studentId });
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${studentId} not found`);
+      }
+
+      const completedExams = await this.studentExamRepo.find({
+        where: {
+          student: { id: studentId },
+          isSubmitted: true,
+        },
+        relations: ['exam', 'exam.subject'],
+        order: {
+          submittedAt: 'DESC',
+        },
+      });
+
+      const practiceExamsCompleted = completedExams.filter(
+        (studentExam) => studentExam.exam.examType === 'practice',
+      );
+
+      const result = practiceExamsCompleted.map((studentExam) => {
+        const totalQuestions = studentExam.exam.totalQuestions || 0;
+        const maxScore = studentExam.exam.maxScore || 100;
+        const score = studentExam.score || 0;
+        const scorePercentage =
+          maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+        return {
+          studentExamId: studentExam.id,
+          exam: {
+            id: studentExam.exam.id,
+            name: studentExam.exam.name,
+            subject: studentExam.exam.subject,
+            duration: studentExam.exam.duration,
+            totalQuestions,
+            maxScore,
+          },
+          result: {
+            score,
+            scorePercentage,
+            startedAt: studentExam.startedAt,
+            submittedAt: studentExam.submittedAt,
+            timeTaken: this.calculateTimeTaken(
+              studentExam.startedAt || new Date(),
+              studentExam.submittedAt,
+            ),
+          },
+        };
+      });
 
       return {
-        studentExamId: studentExam.id,
-        exam: {
-          id: studentExam.exam.id,
-          name: studentExam.exam.name,
-          subject: studentExam.exam.subject,
-          duration: studentExam.exam.duration,
-          totalQuestions,
-          maxScore,
-        },
-        result: {
-          score,
-          scorePercentage,
-          startedAt: studentExam.startedAt,
-          submittedAt: studentExam.submittedAt,
-          timeTaken: this.calculateTimeTaken(
-            studentExam.startedAt || new Date(),
-            studentExam.submittedAt,
-          ),
-        },
+        studentId,
+        totalCompletedExams: result.length,
+        totalPracticeExams: result.length,
+        totalOfficialExams: 0,
+        completedExams: result,
+        practiceExams: result,
+        officialExams: [],
       };
-    });
-
-    return {
-      studentId,
-      totalCompletedExams: result.length,
-      totalPracticeExams: result.length,
-      totalOfficialExams: 0,
-      completedExams: result,
-      practiceExams: result,
-      officialExams: [],
-    };
+    }
   }
 
   /**
@@ -1416,117 +1748,82 @@ export class ExamService {
    * @returns Kết quả chi tiết bao gồm điểm số, câu trả lời từng câu
    */
   async getExamResult(studentExamId: number) {
-    // Lấy thông tin bài thi với tất cả relations cần thiết
-    const studentExam = await this.studentExamRepo.findOne({
-      where: { id: studentExamId, isSubmitted: true },
-      relations: [
-        'exam',
-        'exam.subject',
-        'student',
-        'studentAnswers',
-        'studentAnswers.question',
-        'studentAnswers.question.answers',
-        'studentAnswers.answer',
-      ],
-    });
+    const cacheKey = `${this.CACHE_KEYS.EXAM_RESULT}${studentExamId}`;
 
-    if (!studentExam) {
-      throw new NotFoundException(
-        `Completed exam with ID ${studentExamId} not found`,
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        this.logger.log(`Cache hit for exam result: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(`Cache miss for exam result: ${cacheKey}`);
+
+      // Lấy thông tin bài thi với tất cả relations cần thiết
+      const studentExam = await this.studentExamRepo.findOne({
+        where: { id: studentExamId, isSubmitted: true },
+        relations: [
+          'exam',
+          'exam.subject',
+          'student',
+          'studentAnswers',
+          'studentAnswers.question',
+          'studentAnswers.question.answers',
+          'studentAnswers.answer',
+        ],
+      });
+
+      if (!studentExam) {
+        throw new NotFoundException(
+          `Completed exam with ID ${studentExamId} not found`,
+        );
+      }
+
+      const result = this.formatExamResult(studentExam);
+
+      // Lưu vào cache với TTL dài hơn (10 phút) vì kết quả thi đã hoàn thành ít thay đổi
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(result),
+        this.CACHE_TTL,
       );
+
+      return result;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getExamResult: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const studentExam = await this.studentExamRepo.findOne({
+        where: { id: studentExamId, isSubmitted: true },
+        relations: [
+          'exam',
+          'exam.subject',
+          'student',
+          'studentAnswers',
+          'studentAnswers.question',
+          'studentAnswers.question.answers',
+          'studentAnswers.answer',
+        ],
+      });
+
+      if (!studentExam) {
+        throw new NotFoundException(
+          `Completed exam with ID ${studentExamId} not found`,
+        );
+      }
+
+      return this.formatExamResult(studentExam);
     }
-
-    const { exam, student, studentAnswers } = studentExam;
-    const totalQuestions = exam.totalQuestions || 0;
-    const maxScore = exam.maxScore || 100;
-    const score = studentExam.score || 0;
-    const scorePercentage =
-      maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-
-    // Phân tích từng câu trả lời
-    const questionResults = studentAnswers.map((studentAnswer) => {
-      const question = studentAnswer.question;
-      const correctAnswer = question.answers.find((a) => a.isCorrect);
-      const studentSelectedAnswer = studentAnswer.answer;
-      const isCorrect =
-        studentSelectedAnswer && correctAnswer
-          ? studentSelectedAnswer.id === correctAnswer.id
-          : false;
-
-      return {
-        questionId: question.id,
-        questionText: question.questionText,
-        passageText: question.passageText,
-        imageUrl: question.imageUrl,
-        audioUrl: question.audioUrl,
-        difficultyLevel: question.difficultyLevel,
-        answers: question.answers.map((answer) => ({
-          id: answer.id,
-          answerText: answer.answerText,
-          isCorrect: answer.isCorrect,
-          isSelected: studentSelectedAnswer
-            ? answer.id === studentSelectedAnswer.id
-            : false,
-        })),
-        studentAnswer: {
-          answerId: studentAnswer.answerId,
-          isCorrect,
-          answeredAt: studentAnswer.answeredAt,
-          isMarked: studentAnswer.isMarked,
-        },
-      };
-    });
-
-    // Thống kê kết quả
-    const correctAnswers = questionResults.filter(
-      (q) => q.studentAnswer.isCorrect,
-    ).length;
-    const incorrectAnswers = questionResults.filter(
-      (q) => !q.studentAnswer.isCorrect && q.studentAnswer.answerId !== null,
-    ).length;
-    // Tính số câu chưa trả lời: tổng số câu - số câu đã trả lời (đúng + sai)
-    const answeredQuestions = correctAnswers + incorrectAnswers;
-    const unansweredQuestions = totalQuestions - answeredQuestions;
-
-    return {
-      studentExamInfo: {
-        id: studentExam.id,
-        student: {
-          id: student.id,
-          fullName: student.fullName,
-          studentCode: student.studentCode,
-        },
-        exam: {
-          id: exam.id,
-          name: exam.name,
-          subject: exam.subject,
-          duration: exam.duration,
-          totalQuestions,
-          maxScore,
-        },
-        result: {
-          score,
-          scorePercentage,
-          startedAt: studentExam.startedAt,
-          submittedAt: studentExam.submittedAt,
-          timeTaken: this.calculateTimeTaken(
-            studentExam.startedAt || new Date(),
-            studentExam.submittedAt || new Date(),
-          ),
-        },
-      },
-      statistics: {
-        totalQuestions,
-        correctAnswers,
-        incorrectAnswers,
-        unansweredQuestions,
-        accuracyPercentage:
-          totalQuestions > 0
-            ? Math.round((correctAnswers / totalQuestions) * 100)
-            : 0,
-      },
-      questionResults,
-    };
   }
 
   /**
@@ -1536,35 +1833,97 @@ export class ExamService {
    * @returns Kết quả chi tiết bài thi của sinh viên trong đề thi đó
    */
   async getStudentExamResult(examId: number, studentId: number) {
-    // Tìm StudentExam dựa trên examId và studentId
-    const studentExam = await this.studentExamRepo.findOne({
-      where: {
-        exam: { id: examId },
-        student: { id: studentId },
-        isSubmitted: true,
-      },
-      relations: [
-        'exam',
-        'exam.subject',
-        'student',
-        'studentAnswers',
-        'studentAnswers.question',
-        'studentAnswers.question.answers',
-        'studentAnswers.answer',
-      ],
-      order: {
-        submittedAt: 'DESC', // Nếu có nhiều lần thi, lấy lần gần nhất
-      },
-    });
+    const cacheKey = `${this.CACHE_KEYS.STUDENT_EXAM_RESULT}${examId}_${studentId}`;
 
-    if (!studentExam) {
-      throw new NotFoundException(
-        `Không tìm thấy kết quả thi của sinh viên ID ${studentId} cho đề thi ID ${examId}`,
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        this.logger.log(`Cache hit for student exam result: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(`Cache miss for student exam result: ${cacheKey}`);
+
+      // Tìm StudentExam dựa trên examId và studentId
+      const studentExam = await this.studentExamRepo.findOne({
+        where: {
+          exam: { id: examId },
+          student: { id: studentId },
+          isSubmitted: true,
+        },
+        relations: [
+          'exam',
+          'exam.subject',
+          'student',
+          'studentAnswers',
+          'studentAnswers.question',
+          'studentAnswers.question.answers',
+          'studentAnswers.answer',
+        ],
+        order: {
+          submittedAt: 'DESC', // Nếu có nhiều lần thi, lấy lần gần nhất
+        },
+      });
+
+      if (!studentExam) {
+        throw new NotFoundException(
+          `Không tìm thấy kết quả thi của sinh viên ID ${studentId} cho đề thi ID ${examId}`,
+        );
+      }
+
+      // Sử dụng lại logic từ hàm getExamResult
+      const result = this.formatExamResult(studentExam);
+
+      // Lưu vào cache với TTL dài hơn (10 phút) vì kết quả thi đã hoàn thành ít thay đổi
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(result),
+        this.CACHE_TTL,
       );
-    }
 
-    // Sử dụng lại logic từ hàm getExamResult
-    return this.formatExamResult(studentExam);
+      return result;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getStudentExamResult: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const studentExam = await this.studentExamRepo.findOne({
+        where: {
+          exam: { id: examId },
+          student: { id: studentId },
+          isSubmitted: true,
+        },
+        relations: [
+          'exam',
+          'exam.subject',
+          'student',
+          'studentAnswers',
+          'studentAnswers.question',
+          'studentAnswers.question.answers',
+          'studentAnswers.answer',
+        ],
+        order: {
+          submittedAt: 'DESC',
+        },
+      });
+
+      if (!studentExam) {
+        throw new NotFoundException(
+          `Không tìm thấy kết quả thi của sinh viên ID ${studentId} cho đề thi ID ${examId}`,
+        );
+      }
+
+      return this.formatExamResult(studentExam);
+    }
   }
 
   /**
@@ -1573,78 +1932,186 @@ export class ExamService {
    * @returns Danh sách kết quả thi của tất cả sinh viên
    */
   async getAllStudentResultsForExam(examId: number) {
-    // Kiểm tra đề thi có tồn tại không
-    const exam = await this.examRepo.findOneBy({ id: examId });
-    if (!exam) {
-      throw new NotFoundException(`Exam with ID ${examId} not found`);
-    }
+    const cacheKey = `${this.CACHE_KEYS.ALL_STUDENT_RESULTS_FOR_EXAM}${examId}`;
 
-    // Lấy tất cả kết quả thi của đề thi này
-    const studentExams = await this.studentExamRepo.find({
-      where: {
-        exam: { id: examId },
-        isSubmitted: true,
-      },
-      relations: [
-        'exam',
-        'exam.subject',
-        'student',
-        'studentAnswers',
-        'studentAnswers.question',
-        'studentAnswers.question.answers',
-        'studentAnswers.answer',
-      ],
-      order: {
-        score: 'DESC', // Sắp xếp theo điểm cao nhất
-        submittedAt: 'ASC',
-      },
-    });
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
 
-    if (studentExams.length === 0) {
+      if (cachedData) {
+        this.logger.log(
+          `Cache hit for all student results for exam: ${cacheKey}`,
+        );
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(
+        `Cache miss for all student results for exam: ${cacheKey}`,
+      );
+
+      // Kiểm tra đề thi có tồn tại không
+      const exam = await this.examRepo.findOneBy({ id: examId });
+      if (!exam) {
+        throw new NotFoundException(`Exam with ID ${examId} not found`);
+      }
+
+      // Lấy tất cả kết quả thi của đề thi này
+      const studentExams = await this.studentExamRepo.find({
+        where: {
+          exam: { id: examId },
+          isSubmitted: true,
+        },
+        relations: [
+          'exam',
+          'exam.subject',
+          'student',
+          'studentAnswers',
+          'studentAnswers.question',
+          'studentAnswers.question.answers',
+          'studentAnswers.answer',
+        ],
+        order: {
+          score: 'DESC', // Sắp xếp theo điểm cao nhất
+          submittedAt: 'ASC',
+        },
+      });
+
+      if (studentExams.length === 0) {
+        const result = {
+          examId,
+          examName: exam.name,
+          totalStudents: 0,
+          results: [],
+          statistics: {
+            averageScore: 0,
+            highestScore: 0,
+            lowestScore: 0,
+            passCount: 0,
+            failCount: 0,
+          },
+        };
+
+        // Lưu vào cache với TTL ngắn hơn (5 phút) vì có thể có sinh viên nộp bài mới
+        await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+
+        return result;
+      }
+
+      // Format kết quả cho từng sinh viên
+      const results = studentExams.map((studentExam) =>
+        this.formatExamResult(studentExam),
+      );
+
+      // Tính thống kê chung
+      const scores = studentExams.map((se) => se.score || 0);
+      const averageScore =
+        scores.reduce((sum, score) => sum + score, 0) / scores.length;
+      const highestScore = Math.max(...scores);
+      const lowestScore = Math.min(...scores);
+      const passThreshold = (exam.maxScore || 100) * 0.5; // 50% để pass
+      const passCount = scores.filter((score) => score >= passThreshold).length;
+      const failCount = scores.length - passCount;
+
+      const result = {
+        examId,
+        examName: exam.name,
+        totalStudents: studentExams.length,
+        results,
+        statistics: {
+          averageScore: Math.round(averageScore * 100) / 100,
+          highestScore,
+          lowestScore,
+          passCount,
+          failCount,
+          passRate: Math.round((passCount / scores.length) * 100),
+        },
+      };
+
+      // Lưu vào cache với TTL ngắn hơn (5 phút) vì có thể có sinh viên nộp bài mới
+      await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+
+      return result;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getAllStudentResultsForExam: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const exam = await this.examRepo.findOneBy({ id: examId });
+      if (!exam) {
+        throw new NotFoundException(`Exam with ID ${examId} not found`);
+      }
+
+      const studentExams = await this.studentExamRepo.find({
+        where: {
+          exam: { id: examId },
+          isSubmitted: true,
+        },
+        relations: [
+          'exam',
+          'exam.subject',
+          'student',
+          'studentAnswers',
+          'studentAnswers.question',
+          'studentAnswers.question.answers',
+          'studentAnswers.answer',
+        ],
+        order: {
+          score: 'DESC',
+          submittedAt: 'ASC',
+        },
+      });
+
+      if (studentExams.length === 0) {
+        return {
+          examId,
+          examName: exam.name,
+          totalStudents: 0,
+          results: [],
+          statistics: {
+            averageScore: 0,
+            highestScore: 0,
+            lowestScore: 0,
+            passCount: 0,
+            failCount: 0,
+          },
+        };
+      }
+
+      const results = studentExams.map((studentExam) =>
+        this.formatExamResult(studentExam),
+      );
+
+      const scores = studentExams.map((se) => se.score || 0);
+      const averageScore =
+        scores.reduce((sum, score) => sum + score, 0) / scores.length;
+      const highestScore = Math.max(...scores);
+      const lowestScore = Math.min(...scores);
+      const passThreshold = (exam.maxScore || 100) * 0.5;
+      const passCount = scores.filter((score) => score >= passThreshold).length;
+      const failCount = scores.length - passCount;
+
       return {
         examId,
         examName: exam.name,
-        totalStudents: 0,
-        results: [],
+        totalStudents: studentExams.length,
+        results,
         statistics: {
-          averageScore: 0,
-          highestScore: 0,
-          lowestScore: 0,
-          passCount: 0,
-          failCount: 0,
+          averageScore: Math.round(averageScore * 100) / 100,
+          highestScore,
+          lowestScore,
+          passCount,
+          failCount,
+          passRate: Math.round((passCount / scores.length) * 100),
         },
       };
     }
-
-    // Format kết quả cho từng sinh viên
-    const results = studentExams.map((studentExam) =>
-      this.formatExamResult(studentExam),
-    );
-
-    // Tính thống kê chung
-    const scores = studentExams.map((se) => se.score || 0);
-    const averageScore =
-      scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const highestScore = Math.max(...scores);
-    const lowestScore = Math.min(...scores);
-    const passThreshold = (exam.maxScore || 100) * 0.5; // 50% để pass
-    const passCount = scores.filter((score) => score >= passThreshold).length;
-    const failCount = scores.length - passCount;
-
-    return {
-      examId,
-      examName: exam.name,
-      totalStudents: studentExams.length,
-      results,
-      statistics: {
-        averageScore: Math.round(averageScore * 100) / 100,
-        highestScore,
-        lowestScore,
-        passCount,
-        failCount,
-        passRate: Math.round((passCount / scores.length) * 100),
-      },
-    };
   }
 
   /**
@@ -1700,7 +2167,6 @@ export class ExamService {
       (q: any) =>
         !q.studentAnswer.isCorrect && q.studentAnswer.answerId !== null,
     ).length;
-
     // Tính số câu chưa trả lời: tổng số câu - số câu đã trả lời (đúng + sai)
     const answeredQuestions = correctAnswers + incorrectAnswers;
     const unansweredQuestions = totalQuestions - answeredQuestions;
@@ -1728,7 +2194,7 @@ export class ExamService {
           submittedAt: studentExam.submittedAt,
           timeTaken: this.calculateTimeTaken(
             studentExam.startedAt || new Date(),
-            studentExam.submittedAt || new Date(),
+            studentExam.submittedAt,
           ),
         },
       },
@@ -1764,73 +2230,303 @@ export class ExamService {
    * @returns Danh sách đề thi đã hoàn thành với điểm số và thời gian
    */
   async getAllCompletedExams(studentId: number) {
-    // Kiểm tra student có tồn tại không
-    const student = await this.studentRepo.findOneBy({ id: studentId });
-    if (!student) {
-      throw new NotFoundException(`Student with ID ${studentId} not found`);
-    }
+    const cacheKey = `${this.CACHE_KEYS.ALL_COMPLETED_EXAMS}${studentId}`;
 
-    // Lấy tất cả bài thi đã hoàn thành (đã submit)
-    const completedExams = await this.studentExamRepo.find({
-      where: {
-        student: { id: studentId },
-        isSubmitted: true,
-      },
-      relations: ['exam', 'exam.subject'],
-      order: {
-        submittedAt: 'DESC',
-      },
-    });
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
 
-    // Format kết quả
-    const result = completedExams.map((studentExam) => {
-      const totalQuestions = studentExam.exam.totalQuestions || 0;
-      const maxScore = studentExam.exam.maxScore || 100;
-      const score = studentExam.score || 0;
-      const scorePercentage =
-        maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+      if (cachedData) {
+        this.logger.log(`Cache hit for all completed exams: ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(`Cache miss for all completed exams: ${cacheKey}`);
+
+      // Kiểm tra student có tồn tại không
+      const student = await this.studentRepo.findOneBy({ id: studentId });
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${studentId} not found`);
+      }
+
+      // Lấy tất cả bài thi đã hoàn thành (đã submit)
+      const completedExams = await this.studentExamRepo.find({
+        where: {
+          student: { id: studentId },
+          isSubmitted: true,
+        },
+        relations: ['exam', 'exam.subject'],
+        order: {
+          submittedAt: 'DESC',
+        },
+      });
+
+      // Format kết quả
+      const result = completedExams.map((studentExam) => {
+        const totalQuestions = studentExam.exam.totalQuestions || 0;
+        const maxScore = studentExam.exam.maxScore || 100;
+        const score = studentExam.score || 0;
+        const scorePercentage =
+          maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+        return {
+          studentExamId: studentExam.id,
+          exam: {
+            id: studentExam.exam.id,
+            name: studentExam.exam.name,
+            subject: studentExam.exam.subject,
+            examType: studentExam.exam.examType,
+            duration: studentExam.exam.duration,
+            totalQuestions,
+            maxScore,
+          },
+          result: {
+            score,
+            scorePercentage,
+            startedAt: studentExam.startedAt,
+            submittedAt: studentExam.submittedAt,
+            timeTaken: this.calculateTimeTaken(
+              studentExam.startedAt || new Date(),
+              studentExam.submittedAt,
+            ),
+          },
+        };
+      });
+
+      // Phân loại kết quả theo loại đề thi
+      const practiceExams = result.filter(
+        (exam) => exam.exam.examType === 'practice',
+      );
+
+      const officialExams = result.filter(
+        (exam) => exam.exam.examType === 'official',
+      );
+
+      const finalResult = {
+        studentId,
+        totalCompletedExams: result.length,
+        totalPracticeExams: practiceExams.length,
+        totalOfficialExams: officialExams.length,
+        completedExams: result,
+        practiceExams,
+        officialExams,
+      };
+
+      // Lưu vào cache với TTL ngắn hơn (5 phút) vì có thể có bài thi mới được hoàn thành
+      await this.redisService.set(cacheKey, JSON.stringify(finalResult), 300);
+
+      return finalResult;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Error in getAllCompletedExams: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      const student = await this.studentRepo.findOneBy({ id: studentId });
+      if (!student) {
+        throw new NotFoundException(`Student with ID ${studentId} not found`);
+      }
+
+      const completedExams = await this.studentExamRepo.find({
+        where: {
+          student: { id: studentId },
+          isSubmitted: true,
+        },
+        relations: ['exam', 'exam.subject'],
+        order: {
+          submittedAt: 'DESC',
+        },
+      });
+
+      const result = completedExams.map((studentExam) => {
+        const totalQuestions = studentExam.exam.totalQuestions || 0;
+        const maxScore = studentExam.exam.maxScore || 100;
+        const score = studentExam.score || 0;
+        const scorePercentage =
+          maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+
+        return {
+          studentExamId: studentExam.id,
+          exam: {
+            id: studentExam.exam.id,
+            name: studentExam.exam.name,
+            subject: studentExam.exam.subject,
+            examType: studentExam.exam.examType,
+            duration: studentExam.exam.duration,
+            totalQuestions,
+            maxScore,
+          },
+          result: {
+            score,
+            scorePercentage,
+            startedAt: studentExam.startedAt,
+            submittedAt: studentExam.submittedAt,
+            timeTaken: this.calculateTimeTaken(
+              studentExam.startedAt || new Date(),
+              studentExam.submittedAt,
+            ),
+          },
+        };
+      });
+
+      const practiceExams = result.filter(
+        (exam) => exam.exam.examType === 'practice',
+      );
+
+      const officialExams = result.filter(
+        (exam) => exam.exam.examType === 'official',
+      );
 
       return {
-        studentExamId: studentExam.id,
-        exam: {
-          id: studentExam.exam.id,
-          name: studentExam.exam.name,
-          subject: studentExam.exam.subject,
-          examType: studentExam.exam.examType,
-          duration: studentExam.exam.duration,
-          totalQuestions,
-          maxScore,
-        },
-        result: {
-          score,
-          scorePercentage,
-          startedAt: studentExam.startedAt,
-          submittedAt: studentExam.submittedAt,
-          timeTaken: this.calculateTimeTaken(
-            studentExam.startedAt || new Date(),
-            studentExam.submittedAt,
-          ),
-        },
+        studentId,
+        totalCompletedExams: result.length,
+        totalPracticeExams: practiceExams.length,
+        totalOfficialExams: officialExams.length,
+        completedExams: result,
+        practiceExams,
+        officialExams,
       };
-    });
+    }
+  }
 
-    // Phân loại kết quả theo loại đề thi
-    const practiceExams = result.filter(
-      (exam) => exam.exam.examType === 'practice',
-    );
+  async getStudentExamResults(filters?: {
+    classId?: number;
+    subjectId?: number;
+    examType?: string;
+    specificDate?: string; // Format: YYYY-MM-DD
+    startDate?: string; // Format: YYYY-MM-DD
+    endDate?: string; // Format: YYYY-MM-DD
+  }): Promise<any[]> {
+    // Tạo cache key dựa trên filters
+    const filterKey = filters
+      ? `${filters.classId || 'all'}_${filters.subjectId || 'all'}_${
+          filters.examType || 'all'
+        }_${filters.specificDate || 'all'}_${filters.startDate || 'all'}_${filters.endDate || 'all'}`
+      : 'all_all_all_all_all_all';
+    const cacheKey = `${this.CACHE_KEYS.STUDENT_EXAM_RESULTS}${filterKey}`;
 
-    const officialExams = result.filter(
-      (exam) => exam.exam.examType === 'official',
-    );
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
 
-    return {
-      studentId,
-      totalCompletedExams: result.length,
-      totalPracticeExams: practiceExams.length,
-      totalOfficialExams: officialExams.length,
-      completedExams: result,
-      practiceExams,
-      officialExams,
-    };
+      if (cachedData) {
+        this.logger.log(`Cache hit for student exam results: ${cacheKey}`);
+        return JSON.parse(cachedData) as any[];
+      }
+
+      // Nếu không có trong cache, truy vấn database
+      this.logger.log(`Cache miss for student exam results: ${cacheKey}`);
+
+      const queryBuilder = this.studentExamRepo
+        .createQueryBuilder('se')
+        .leftJoinAndSelect('se.student', 'student')
+        .leftJoinAndSelect('student.class', 'class')
+        .leftJoinAndSelect('se.exam', 'exam')
+        .leftJoinAndSelect('exam.subject', 'subject')
+        .where('se.submittedAt IS NOT NULL'); // Chỉ lấy các bài thi đã nộp
+
+      // Áp dụng các bộ lọc nếu có
+      if (filters?.classId) {
+        queryBuilder.andWhere('class.id = :classId', {
+          classId: filters.classId,
+        });
+      }
+
+      if (filters?.subjectId) {
+        queryBuilder.andWhere('subject.id = :subjectId', {
+          subjectId: filters.subjectId,
+        });
+      }
+
+      if (filters?.examType) {
+        queryBuilder.andWhere('exam.examType = :examType', {
+          examType: filters.examType,
+        });
+      }
+
+      // Áp dụng bộ lọc theo ngày
+      if (filters?.specificDate) {
+        // Lọc theo ngày cụ thể (chỉ ngày, không tính giờ)
+        const startOfDay = new Date(`${filters.specificDate}T00:00:00.000Z`);
+        const endOfDay = new Date(`${filters.specificDate}T23:59:59.999Z`);
+        queryBuilder.andWhere('se.submittedAt >= :startOfDay AND se.submittedAt <= :endOfDay', {
+          startOfDay,
+          endOfDay,
+        });
+      } else if (filters?.startDate || filters?.endDate) {
+        // Lọc theo khoảng thời gian
+        if (filters.startDate) {
+          const startDate = new Date(`${filters.startDate}T00:00:00.000Z`);
+          queryBuilder.andWhere('se.submittedAt >= :startDate', { startDate });
+        }
+        if (filters.endDate) {
+          const endDate = new Date(`${filters.endDate}T23:59:59.999Z`);
+          queryBuilder.andWhere('se.submittedAt <= :endDate', { endDate });
+        }
+      }
+
+      queryBuilder.orderBy('se.submittedAt', 'DESC');
+
+      const studentExams = await queryBuilder.getMany();
+
+      // Chuyển đổi dữ liệu thành format mong muốn
+      const results = studentExams.map((se) => {
+        const startTime = se.startedAt ? new Date(se.startedAt) : null;
+        const submitTime = se.submittedAt ? new Date(se.submittedAt) : null;
+
+        // Tính thời gian làm bài thực tế
+        let actualDuration = '0 phút';
+        if (startTime && submitTime) {
+          const durationMs = submitTime.getTime() - startTime.getTime();
+          const durationMinutes = Math.floor(durationMs / (1000 * 60));
+          actualDuration = `${durationMinutes} phút`;
+        }
+
+        return {
+          studentName: se.student?.fullName || 'N/A',
+          studentId: se.student?.studentCode || 'N/A',
+          examName: se.exam?.name || 'N/A',
+          score: se.score || 0,
+          maxScore: se.exam?.maxScore || 10,
+          duration: se.exam?.duration ? `${se.exam.duration} phút` : 'N/A',
+          actualDuration,
+          startTime: startTime
+            ? startTime.toISOString().replace('T', ' ').substring(0, 19)
+            : 'N/A',
+          submitTime: submitTime
+            ? submitTime.toISOString().replace('T', ' ').substring(0, 19)
+            : 'N/A',
+          class: se.student?.class?.name || 'N/A',
+          subject: se.exam?.subject?.name || 'N/A',
+          type: se.exam?.examType || 'N/A',
+          studentExamId: se.id,
+          examId: se.exam?.id,
+          studentDbId: se.student?.id,
+          classId: se.student?.class?.id,
+          subjectId: se.exam?.subject?.id,
+        };
+      });
+
+      // Lưu vào cache với TTL ngắn hơn (5 phút) vì dữ liệu có thể thay đổi thường xuyên
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(results),
+        300, // 5 phút
+      );
+
+      return results;
+    } catch (error) {
+      this.logger.error(
+        `Error in getStudentExamResults: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      throw error;
+    }
   }
 }

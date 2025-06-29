@@ -21,6 +21,8 @@ import * as csv from 'csv-parser';
 import { RedisService } from '../../modules/redis/redis.service';
 import { checkActiveStudentExams } from '../../common/utils/exam-validation.util';
 import { StudentExamSessions } from 'src/database/entities/StudentExamSessions';
+import { NotificationService } from '../notification/notification.service';
+import { In } from 'typeorm';
 
 @Injectable()
 export class StudentService {
@@ -35,6 +37,7 @@ export class StudentService {
   constructor(
     private readonly studentRepository: StudentRepository,
     private readonly redisService: RedisService,
+    private readonly notificationService: NotificationService,
     @InjectRepository(Classes)
     private readonly classRepo: Repository<Classes>,
     @InjectRepository(StudentExamSessions)
@@ -96,6 +99,17 @@ export class StudentService {
 
     // Xóa cache sau khi tạo mới
     await this.invalidateCache();
+
+    // Gửi thông báo cho các tài khoản có quyền tạo tài khoản
+    await this.notificationService.createNotificationForPermission(
+      'account:create',
+      `Vui lòng tạo tài khoản cho sinh viên ${result.fullName} với email ${result.email}`,
+      {
+        studentId: result.id,
+        studentName: result.fullName,
+        studentEmail: result.email,
+      },
+    );
 
     return result;
   }
@@ -226,6 +240,18 @@ export class StudentService {
 
       // Xóa cache sau khi thêm nhiều sinh viên thành công
       await this.invalidateCache();
+
+      // Gửi thông báo cho các tài khoản có quyền tạo tài khoản
+      if (result.success > 0) {
+        await this.notificationService.createNotificationForPermission(
+          'account:create',
+          `Vui lòng tạo tài khoản cho ${result.success} sinh viên mới được thêm vào `,
+          {
+            studentCount: result.success,
+            studentIds: result.createdStudents.map(student => student.id),
+          },
+        );
+      }
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;

@@ -14,7 +14,9 @@ export class StudentRepository extends Repository<Students> {
   }
 
   async getListStudentWithoutAccount(): Promise<StudentDto[]> {
-    const students = await this.find();
+    const students = await this.find({
+      relations: ['account', 'class'],
+    });
     const studentsWithoutAccount = students.filter(
       (student) => !student.account,
     );
