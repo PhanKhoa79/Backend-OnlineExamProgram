@@ -48,4 +48,13 @@ export class StartExamResponseDto {
   startedAt: Date | null;
   questions: any[];
   existingAnswers: StudentAnswerResponseDto[];
+  examDuration: number;
+  examDurationSeconds: number;
+  timeElapsed: number;
+  timeElapsedSeconds: number;
+  timeRemaining: number;
+  timeRemainingSeconds: number;
+  timeRemainingFormatted: string;
+  isResumed: boolean;
+  examType: 'practice' | 'official';
 }

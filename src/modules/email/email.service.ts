@@ -52,7 +52,7 @@ export class EmailService implements OnModuleInit {
         pass: this.configService.get<string>('EMAIL_PASSWORD'),
       },
       host: this.configService.get<string>('EMAIL_HOST'),
-      port: this.configService.get<number>('PORT'),
+      port: this.configService.get<number>('EMAIL_PORT'),
       pool: true, // Sử dụng connection pool
       maxConnections: 10, // Tăng số kết nối tối đa trong pool
       maxMessages: 200, // Tăng số email tối đa mỗi kết nối

@@ -891,6 +891,14 @@ export class ReportService {
   async getTopStudents(
     query: TopStudentsQueryDto,
   ): Promise<TopStudentsResponseDto> {
+    // Check cache first
+    const cachedResult =
+      await this.analyticsCacheService.getCachedTopStudents(query);
+    if (cachedResult) {
+      this.logger.log('Returning cached top students data');
+      return cachedResult;
+    }
+
     this.logger.log('Computing top students from database');
 
     // 1. Build base where conditions for official exams only
@@ -918,13 +926,17 @@ export class ReportService {
       relations,
     });
 
-    this.logger.log(`Found ${studentExams.length} official exams for top students analysis`);
+    this.logger.log(
+      `Found ${studentExams.length} official exams for top students analysis`,
+    );
 
     // 4. Group by student and calculate statistics
-    const studentStatsMap = new Map<string, {
-      student: any;
-      totalScore: number;
-      examCount: number;
+    const studentStatsMap = new Map<
+      string,
+      {
+        student: any;
+        totalScore: number;
+        examCount: number;
       }
     >();
 
@@ -972,6 +984,10 @@ export class ReportService {
       success: true,
       data: topStudents,
     };
+
+    // Cache the result
+    await this.analyticsCacheService.setCachedTopStudents(query, result);
+    this.logger.log('Top students data cached successfully');
 
     return result;
   }

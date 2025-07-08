@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
 import { createHash } from 'crypto';
-import { 
+import {
   ExamVolumeResponseDto,
-  ScoreTrendsResponse,
   ScoreStatisticsResponseDto,
-  FailingStudentsResponseDto
+  FailingStudentsResponseDto,
+  TopStudentsResponseDto,
 } from './dto/analytics-response.dto';
 
 @Injectable()
@@ -14,13 +14,14 @@ export class AnalyticsCacheService {
   
   // Cache TTL (Time To Live) configurations
   private readonly CACHE_TTL = {
-    SUMMARY: 30, 
-    SCORE_TRENDS: 30, 
-    SUBJECT_PERFORMANCE: 30,
-    SCORE_DISTRIBUTION: 30,
-    EXAM_VOLUME: 30, 
-    SCORE_STATISTICS: 30,
-    FAILING_STUDENTS: 30,
+    SUMMARY: 300,
+    SCORE_TRENDS: 300,
+    SUBJECT_PERFORMANCE: 300,
+    SCORE_DISTRIBUTION: 300,
+    EXAM_VOLUME: 300,
+    SCORE_STATISTICS: 300,
+    FAILING_STUDENTS: 300,
+    TOP_STUDENTS: 300,
   };
 
   private readonly CACHE_PREFIX = {
@@ -32,6 +33,7 @@ export class AnalyticsCacheService {
     EXAM_VOLUME: 'analytics:volume',
     SCORE_STATISTICS: 'analytics:score-stats',
     FAILING_STUDENTS: 'analytics:failing-students',
+    TOP_STUDENTS: 'analytics:top-students',
   };
 
   constructor(private readonly redisService: RedisService) {}
@@ -110,13 +112,14 @@ export class AnalyticsCacheService {
         return this.CACHE_TTL.SUBJECT_PERFORMANCE;
       case this.CACHE_PREFIX.SCORE_DISTRIBUTION:
         return this.CACHE_TTL.SCORE_DISTRIBUTION;
-
       case this.CACHE_PREFIX.EXAM_VOLUME:
         return this.CACHE_TTL.EXAM_VOLUME;
       case this.CACHE_PREFIX.SCORE_STATISTICS:
         return this.CACHE_TTL.SCORE_STATISTICS;
       case this.CACHE_PREFIX.FAILING_STUDENTS:
         return this.CACHE_TTL.FAILING_STUDENTS;
+      case this.CACHE_PREFIX.TOP_STUDENTS:
+        return this.CACHE_TTL.TOP_STUDENTS;
       default:
         return 300; // Default 5 minutes
     }
@@ -223,6 +226,17 @@ export class AnalyticsCacheService {
   }
 
   /**
+   * Top Students Cache Methods
+   */
+  async getCachedTopStudents(queryParams: any): Promise<TopStudentsResponseDto | null> {
+    return this.getCachedData<TopStudentsResponseDto>(this.CACHE_PREFIX.TOP_STUDENTS, queryParams);
+  }
+
+  async setCachedTopStudents(queryParams: any, data: TopStudentsResponseDto): Promise<void> {
+    return this.setCachedData(this.CACHE_PREFIX.TOP_STUDENTS, queryParams, data);
+  }
+
+  /**
    * Invalidate cache patterns
    */
   async invalidateAnalyticsCache(pattern?: string): Promise<void> {
@@ -268,6 +282,10 @@ export class AnalyticsCacheService {
 
   async invalidateFailingStudentsCache(): Promise<void> {
     return this.invalidateAnalyticsCache(`${this.CACHE_PREFIX.FAILING_STUDENTS}:*`);
+  }
+
+  async invalidateTopStudentsCache(): Promise<void> {
+    return this.invalidateAnalyticsCache(`${this.CACHE_PREFIX.TOP_STUDENTS}:*`);
   }
 
   /**
