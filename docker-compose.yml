@@ -19,11 +19,7 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-onlineexam}',
-        ]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-postgres}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +35,7 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
@@ -63,7 +59,7 @@ services:
     environment:
       # Database Configuration
       - DB_TYPE=postgres
-      - DB_HOST=postgres
+      - DB_HOST=postgres # Connect to postgres container
       - DB_PORT=5432
       - DB_USERNAME=${DB_USERNAME:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-password}
@@ -86,10 +82,10 @@ services:
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
 
       # Email Configuration
-      - MAIL_HOST=${EMAIL_HOST:-}
-      - MAIL_PORT=${EMAIL_PORT:-587}
-      - MAIL_USER=${EMAIL_USER:-}
-      - MAIL_PASS=${EMAIL_PASSWORD:-}
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USER=${EMAIL_USER:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
       - MAIL_FROM=${MAIL_FROM:-${EMAIL_USER}}
 
       # Cloudinary Configuration (if used)
@@ -107,12 +103,30 @@ services:
       timeout: 10s
       retries: 3
 
+  # Redis Insight - Redis GUI
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: redis-insight
+    ports:
+      - '8001:8001'
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+    volumes:
+      - redis_insight_data:/db
+
 networks:
   app-network:
+    name: shared-network
     driver: bridge
 
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  redis_insight_data:
     driver: local

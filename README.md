@@ -171,9 +171,9 @@ cd backend-onlineexam-program
 2. **Cài đặt dependencies** 📦
 
 ```bash
-npm install
+bun install
 # hoặc
-yarn install
+npm install
 ```
 
 3. **Cấu hình môi trường** 🔧
@@ -200,13 +200,13 @@ npm run seed
 
 ```bash
 # Chế độ phát triển (Development)
-npm run start:dev
+bun run start:dev
 
 # Chế độ debug
-npm run start:debug
+bun run start:debug
 
 # Chế độ production
-npm run start:prod
+bun run start:prod
 ```
 
 ---
@@ -316,10 +316,10 @@ MAIL_FROM=your-email@gmail.com
 
 | Command | Mô tả | Icon |
 |---------|-------|------|
-| `npm run start:dev` | Khởi chạy development server | 🚀 |
-| `npm run build` | Build cho production | 🏗️ |
-| `npm run test` | Chạy unit tests | 🧪 |
-| `npm run lint` | Kiểm tra code style | ✨ |
+| `bun run start:dev` | Khởi chạy development server | 🚀 |
+| `bun run build` | Build cho production | 🏗️ |
+| `bun run test` | Chạy unit tests | 🧪 |
+| `bun run lint` | Kiểm tra code style | ✨ |
 
 ---
 
@@ -460,15 +460,13 @@ Dự án này được phân phối dưới giấy phép MIT. Xem file `LICENSE`
 
 ## 📞 Liên Hệ
 
-- **Email**: support@yourapp.com
-- **Website**: https://yourapp.com
-- **Documentation**: https://docs.yourapp.com
+- **Email**: phankhoa1379@gmail.com
 
 ---
 
 <div align="center">
 
-**🎓 Được phát triển với ❤️ bởi [Tên Team]**
+**🎓 Được phát triển với ❤️ bởi Phan Khoa**
 
 Made with ❤️ in Vietnam 🇻🇳
 

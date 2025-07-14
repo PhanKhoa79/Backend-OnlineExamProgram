@@ -12,7 +12,7 @@ import * as jwt from 'jsonwebtoken';
 import * as dotenv from 'dotenv';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { randomInt } from 'crypto';
+import { randomInt } from 'node:crypto';
 import { EmailService } from '../email/email.service';
 import { RoleService } from '../role/role.service';
 import { LoginHistory } from 'src/database/entities/LoginHistory';

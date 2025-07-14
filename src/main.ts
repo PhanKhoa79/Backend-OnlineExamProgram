@@ -30,9 +30,12 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // Cấu hình CORS
-  const clientUrl = configService.get('CLIENT_URL') || 'http://localhost:3000';
+  const frontendUrl =
+    configService.get('FRONTEND_URL') ||
+    configService.get('CORS_ORIGIN') ||
+    'http://localhost:3000';
   app.enableCors({
-    origin: clientUrl,
+    origin: frontendUrl,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
