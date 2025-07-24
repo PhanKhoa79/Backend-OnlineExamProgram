@@ -10,9 +10,8 @@ import {
   UseGuards,
   Query,
   Res,
-  HttpException,
   HttpStatus,
-  Req,
+  HttpCode,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ExamService } from './exam.service';
@@ -24,7 +23,6 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/permissions.guard';
 import { Permissions } from '../auth/decorator/permissions.decotator';
 import { ActivityLog } from '../../common/decorators/activity-log.decorator';
-
 @Controller('exam')
 export class ExamController {
   constructor(private readonly examService: ExamService) {}
@@ -260,6 +258,7 @@ export class ExamController {
   @Post('student-results')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('exam:view')
+  @HttpCode(HttpStatus.OK)
   async getStudentExamResults(
     @Body() body?: StudentExamResultsFilterDto,
   ): Promise<any[]> {

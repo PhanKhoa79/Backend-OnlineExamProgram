@@ -6,12 +6,12 @@ services:
     image: postgres:15-alpine
     container_name: postgres-db
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-online_exam}
+      POSTGRES_DB: ${DB_NAME:-online_exam}
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_INITDB_ARGS: '--encoding=UTF-8'
     ports:
-      - '${DB_PORT:-5432}:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
@@ -63,7 +63,7 @@ services:
       - DB_PORT=5432
       - DB_USERNAME=${DB_USERNAME:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:-password}
-      - DB_DATABASE=${DB_DATABASE:-online_exam}
+      - DB_NAME=${DB_NAME:-online_exam}
 
       # Redis Configuration
       - REDIS_HOST=redis
@@ -78,8 +78,8 @@ services:
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-7d}
 
       # CORS Configuration
-      - CLIENT_URL=${CLIENT_URL:-http://localhost:3000}
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      - CLIENT_URL=${CLIENT_URL:-*}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
 
       # Email Configuration
       - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}

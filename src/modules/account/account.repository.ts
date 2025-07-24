@@ -31,7 +31,10 @@ export class AccountRepository extends Repository<Accounts> {
   }
 
   async findByEmail(email: string): Promise<Accounts | null> {
-    return this.findOne({ where: { email } });
+    return this.findOne({
+      where: { email },
+      relations: ['role'],
+    });
   }
 
   async findById(id: number): Promise<Accounts | null> {

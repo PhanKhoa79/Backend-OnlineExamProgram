@@ -1,14 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import * as bodyParser from 'body-parser';
-import { ConfigService } from '@nestjs/config';
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
 
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(
@@ -26,18 +25,29 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.use(helmet());
+
+  // Helmet with relaxed settings for development
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
+      },
+    }),
+  );
+
   app.use(cookieParser());
 
-  // Cấu hình CORS
-  const frontendUrl =
-    configService.get('FRONTEND_URL') ||
-    configService.get('CORS_ORIGIN') ||
-    'http://localhost:3000';
+  // Cấu hình CORS - CHO PHÉP TẤT CẢ REQUESTS
   app.enableCors({
-    origin: frontendUrl,
+    origin: true, // Cho phép tất cả origins
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -48,11 +58,40 @@ async function bootstrap() {
       'Origin',
       'Access-Control-Request-Method',
       'Access-Control-Request-Headers',
+      'Cache-Control',
+      'Pragma',
     ],
     exposedHeaders: ['Set-Cookie'],
+    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+    preflightContinue: false,
+  });
+
+  // Add middleware for OPTIONS requests
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.header(
+        'Access-Control-Allow-Methods',
+        'GET,POST,PUT,DELETE,OPTIONS,PATCH,HEAD',
+      );
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Content-Type,Authorization,Cookie,Set-Cookie,X-Requested-With,Accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers,Cache-Control,Pragma',
+      );
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Max-Age', '86400');
+      return res.status(200).end();
+    }
+    next();
   });
 
   app.setGlobalPrefix('api');
+
+  // Health check endpoint
+  app.use('/health', (req, res) => {
+    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+  });
+
   await app.listen(5000);
 }
 bootstrap();

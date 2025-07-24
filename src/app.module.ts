@@ -99,19 +99,14 @@ export class AppModule implements NestModule {
     consumer
       .apply(AuthMiddleware)
       .exclude(
+        // Auth endpoints - POST methods
         { path: 'auth/login', method: RequestMethod.POST },
         { path: 'auth/refresh-token', method: RequestMethod.POST },
-        { path: 'account/activate', method: RequestMethod.POST },
         { path: 'auth/forgot-password', method: RequestMethod.POST },
         { path: 'auth/reset-password', method: RequestMethod.POST },
         { path: 'auth/verify-reset-code', method: RequestMethod.POST },
         { path: 'auth/logout', method: RequestMethod.POST },
         { path: 'auth/request-activation', method: RequestMethod.POST },
-        {
-          path: 'auth/verify-activation-token/(.*)',
-          method: RequestMethod.GET,
-        },
-        { path: 'auth/find-email-by-token/(.*)', method: RequestMethod.GET}
       )
       .forRoutes('*');
   }

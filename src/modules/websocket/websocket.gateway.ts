@@ -12,7 +12,36 @@ import { RedisService } from '../redis/redis.service';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      // Danh sách origins được phép cho WebSocket
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://frontend:3000',
+        'http://nextjs-frontend:3000',
+        process.env.CORS_ORIGIN,
+        process.env.CLIENT_URL,
+      ].filter(Boolean); // Loại bỏ undefined values
+
+      // Nếu có CORS_ORIGINS trong env thì thêm vào
+      if (process.env.CORS_ORIGINS) {
+        allowedOrigins.push(
+          ...process.env.CORS_ORIGINS.split(',').map((o) => o.trim()),
+        );
+      }
+
+      // Cho phép requests không có origin (mobile apps, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`WebSocket CORS blocked origin: ${origin}`);
+        callback(null, false);
+      }
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -143,6 +172,7 @@ export class WebsocketGateway
         `Sending notification for permission ${permission}:`,
         notification,
       );
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       this.server.emit('notification-permission', { permission, notification });
       this.logger.log('Notification broadcast completed');
     } catch (error) {

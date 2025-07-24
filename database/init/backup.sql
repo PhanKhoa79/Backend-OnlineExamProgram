@@ -8,7 +8,7 @@
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
+-- SET transaction_timeout = 0; -- Commented out: not supported in PostgreSQL 15
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -2642,8 +2642,10 @@ COPY public.answers (id, question_id, answer_text, is_correct) FROM stdin;
 845	212	Run	f
 846	212	Quick	f
 847	212	Happiness	t
-848	212	Go	f
-849	213	Scarce	f
+848	212	Go
+f
+849
+213	Scarce	f
 850	213	Plentiful	t
 851	213	Empty	f
 852	213	Rare	f
@@ -2682,8 +2684,10 @@ COPY public.answers (id, question_id, answer_text, is_correct) FROM stdin;
 885	222	Run	f
 886	222	Quick	f
 887	222	Happiness	t
-888	222	Go	f
-889	223	Run	f
+888	222	Go
+f
+889
+223	Run	f
 890	223	Quick	f
 891	223	Happiness	t
 892	223	Go	f
@@ -2694,8 +2698,10 @@ COPY public.answers (id, question_id, answer_text, is_correct) FROM stdin;
 897	225	Run	f
 898	225	Quick	f
 899	225	Happiness	t
-900	225	Go	f
-901	226	Run	f
+900	225	Go
+f
+901
+226	Run	f
 902	226	Quick	f
 903	226	Happiness	t
 904	226	Go	f
@@ -2818,8 +2824,10 @@ COPY public.answers (id, question_id, answer_text, is_correct) FROM stdin;
 1021	256	Run	f
 1022	256	Quick	f
 1023	256	Happiness	t
-1024	256	Go	f
-1025	257	Run	f
+1024	256	Go
+f
+1025
+257	Run	f
 1026	257	Quick	f
 1027	257	Happiness	t
 1028	257	Go	f
@@ -2966,8 +2974,10 @@ COPY public.answers (id, question_id, answer_text, is_correct) FROM stdin;
 1169	293	Run	f
 1170	293	Quick	f
 1171	293	Happiness	t
-1172	293	Go	f
-1173	294	Run	f
+1172	293	Go
+f
+1173
+294	Run	f
 1174	294	Quick	f
 1175	294	Happiness	t
 1176	294	Go	f
