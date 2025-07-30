@@ -28,7 +28,8 @@ export async function checkActiveStudentExams(
 
   if (activeExamSessions.length > 0) {
     // eslint-disable-next-line prettier/prettier
-    const examInfo = activeExamSessions.map(session => {
+    const examInfo = activeExamSessions
+      .map((session) => {
         return `- Môn: ${session.assignment.examSchedule.subject?.name || 'Không xác định'}, Lớp: ${session.assignment.class?.name || 'Không xác định'}`;
       })
       .join('\n');
@@ -68,4 +69,4 @@ export async function checkActiveClassExams(
       `Không thể thực hiện hành động này khi lớp đang có phòng thi mở:\n${examInfo}`,
     );
   }
-} 
+}

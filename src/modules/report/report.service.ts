@@ -104,7 +104,8 @@ export class ReportService {
     query: AnalyticsSummaryQueryDto,
   ): Promise<AnalyticsSummaryResponse> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedSummary(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedSummary(query);
     if (cachedResult) {
       this.logger.log('Returning cached analytics summary');
       return cachedResult;
@@ -127,7 +128,10 @@ export class ReportService {
     // Get submitted exams only
     where.isSubmitted = true;
 
-    this.logger.log('Summary where conditions:', JSON.stringify(where, null, 2));
+    this.logger.log(
+      'Summary where conditions:',
+      JSON.stringify(where, null, 2),
+    );
     this.logger.log('Summary relations:', JSON.stringify(relations));
 
     const studentExams = await this.studentExamsRepository.find({
@@ -139,8 +143,8 @@ export class ReportService {
 
     // Calculate metrics
     const totalExams = studentExams.length;
-    const totalStudents = new Set(studentExams.map(se => se.student.id)).size;
-    const scores = studentExams.map(se => se.score || 0);
+    const totalStudents = new Set(studentExams.map((se) => se.student.id)).size;
+    const scores = studentExams.map((se) => se.score || 0);
     const averageScore = scores.length
       ? scores.reduce((a, b) => a + b, 0) / scores.length
       : 0;
@@ -191,17 +195,21 @@ export class ReportService {
     });
 
     const currentWeekTotalExams = currentWeekExams.length;
-    const currentWeekTotalStudents = new Set(currentWeekExams.map(se => se.student.id)).size;
-    const currentWeekScores = currentWeekExams.map(se => se.score || 0);
-    const currentWeekAverageScore = currentWeekScores.length 
-      ? currentWeekScores.reduce((a, b) => a + b, 0) / currentWeekScores.length 
+    const currentWeekTotalStudents = new Set(
+      currentWeekExams.map((se) => se.student.id),
+    ).size;
+    const currentWeekScores = currentWeekExams.map((se) => se.score || 0);
+    const currentWeekAverageScore = currentWeekScores.length
+      ? currentWeekScores.reduce((a, b) => a + b, 0) / currentWeekScores.length
       : 0;
 
     const prevTotalExams = previousWeekExams.length;
-    const prevTotalStudents = new Set(previousWeekExams.map(se => se.student.id)).size;
-    const prevScores = previousWeekExams.map(se => se.score || 0);
-    const prevAverageScore = prevScores.length 
-      ? prevScores.reduce((a, b) => a + b, 0) / prevScores.length 
+    const prevTotalStudents = new Set(
+      previousWeekExams.map((se) => se.student.id),
+    ).size;
+    const prevScores = previousWeekExams.map((se) => se.score || 0);
+    const prevAverageScore = prevScores.length
+      ? prevScores.reduce((a, b) => a + b, 0) / prevScores.length
       : 0;
 
     const result = {
@@ -212,16 +220,22 @@ export class ReportService {
       completionRate: Math.round(completionRate * 100) / 100,
       weeklyGrowth: {
         exams: prevTotalExams
-          ? Math.round(((currentWeekTotalExams - prevTotalExams) / prevTotalExams) * 100)
+          ? Math.round(
+              ((currentWeekTotalExams - prevTotalExams) / prevTotalExams) * 100,
+            )
           : 0,
         score: prevAverageScore
           ? Math.round(
-              ((currentWeekAverageScore - prevAverageScore) / prevAverageScore) * 100,
+              ((currentWeekAverageScore - prevAverageScore) /
+                prevAverageScore) *
+                100,
             )
           : 0,
         students: prevTotalStudents
           ? Math.round(
-              ((currentWeekTotalStudents - prevTotalStudents) / prevTotalStudents) * 100,
+              ((currentWeekTotalStudents - prevTotalStudents) /
+                prevTotalStudents) *
+                100,
             )
           : 0,
       },
@@ -239,7 +253,8 @@ export class ReportService {
     query: ScoreTrendsQueryDto,
   ): Promise<ScoreTrendsResponse> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedScoreTrends(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedScoreTrends(query);
     if (cachedResult) {
       this.logger.log('Returning cached score trends');
       return cachedResult;
@@ -307,20 +322,28 @@ export class ReportService {
         labels.push(periodStart.toISOString().split('T')[0]);
       } else if (period === PeriodEnum.WEEKLY) {
         periodEnd = new Date(endDate);
-        periodEnd.setDate(endDate.getDate() - (i * 7));
+        periodEnd.setDate(endDate.getDate() - i * 7);
         periodStart = new Date(periodEnd);
         periodStart.setDate(periodStart.getDate() - 7);
         labels.push(`Week ${range - i}`);
       } else {
         // For monthly: start from current month and go backwards
-        periodStart = new Date(endDate.getFullYear(), endDate.getMonth() - i, 1);
-        periodEnd = new Date(endDate.getFullYear(), endDate.getMonth() - i + 1, 1);
-        
+        periodStart = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth() - i,
+          1,
+        );
+        periodEnd = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth() - i + 1,
+          1,
+        );
+
         // For the current month (i=0), include up to current date
         if (i === 0) {
           periodEnd = new Date(endDate);
         }
-        
+
         labels.push(
           periodStart.toLocaleDateString('vi-VN', {
             month: 'short',
@@ -355,7 +378,7 @@ export class ReportService {
       const officialExams = periodExams.filter(
         (se) => se.exam.examType === 'official',
       );
-      const officialScoresList = officialExams.map(se => se.score || 0);
+      const officialScoresList = officialExams.map((se) => se.score || 0);
       const avgOfficialScore = officialScoresList.length
         ? officialScoresList.reduce((a, b) => a + b, 0) /
           officialScoresList.length
@@ -398,7 +421,8 @@ export class ReportService {
     query: SubjectPerformanceQueryDto,
   ): Promise<SubjectPerformanceResponse> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedSubjectPerformance(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedSubjectPerformance(query);
     if (cachedResult) {
       this.logger.log('Returning cached subject performance');
       return cachedResult;
@@ -535,7 +559,8 @@ export class ReportService {
     query: ScoreDistributionQueryDto,
   ): Promise<ScoreDistributionResponse> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedScoreDistribution(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedScoreDistribution(query);
     if (cachedResult) {
       this.logger.log('Returning cached score distribution');
       return cachedResult;
@@ -590,7 +615,8 @@ export class ReportService {
       const min = i * actualBinSize;
       const max = Math.min((i + 1) * actualBinSize, scaleMax);
       const count = scores.filter(
-        (score) => score >= min && (i === numberOfBins - 1 ? score <= max : score < max),
+        (score) =>
+          score >= min && (i === numberOfBins - 1 ? score <= max : score < max),
       ).length;
       const percentage = scores.length ? (count / scores.length) * 100 : 0;
 
@@ -618,7 +644,7 @@ export class ReportService {
 
     // Mode calculation
     const frequency = new Map<number, number>();
-    scores.forEach(score => {
+    scores.forEach((score) => {
       const rounded = Math.round(score);
       frequency.set(rounded, (frequency.get(rounded) || 0) + 1);
     });
@@ -683,7 +709,8 @@ export class ReportService {
     query: ExamVolumeQueryDto,
   ): Promise<ExamVolumeResponseDto> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedExamVolume(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedExamVolume(query);
     if (cachedResult) {
       this.logger.log('Returning cached exam volume data');
       return cachedResult;
@@ -793,7 +820,8 @@ export class ReportService {
     query: ScoreStatisticsQueryDto,
   ): Promise<ScoreStatisticsResponseDto> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedScoreStatistics(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedScoreStatistics(query);
     if (cachedResult) {
       this.logger.log('Returning cached score statistics data');
       return cachedResult;
@@ -861,7 +889,10 @@ export class ReportService {
     const summary = this.calculateScoreStatisticsSummary(filteredExams);
 
     // 9. Generate insights
-    const insights = this.generateScoreStatisticsInsights(filteredExams, summary);
+    const insights = this.generateScoreStatisticsInsights(
+      filteredExams,
+      summary,
+    );
 
     const result = {
       success: true,
@@ -998,7 +1029,8 @@ export class ReportService {
     query: FailingStudentsQueryDto,
   ): Promise<FailingStudentsResponseDto> {
     // Check cache first
-    const cachedResult = await this.analyticsCacheService.getCachedFailingStudents(query);
+    const cachedResult =
+      await this.analyticsCacheService.getCachedFailingStudents(query);
     if (cachedResult) {
       this.logger.log('Returning cached failing students data');
       return cachedResult;
@@ -1032,7 +1064,6 @@ export class ReportService {
     // 3. Get submitted official exams only
     where.isSubmitted = true;
 
-
     const studentExams = await this.studentExamsRepository.find({
       where,
       relations,
@@ -1048,7 +1079,7 @@ export class ReportService {
     });
 
     const scoreDistribution = new Map<number, number>();
-    failingExams.forEach(se => {
+    failingExams.forEach((se) => {
       const score = se.score || 0;
       scoreDistribution.set(score, (scoreDistribution.get(score) || 0) + 1);
     });
@@ -1108,8 +1139,12 @@ export class ReportService {
 
     // 9. Calculate summary statistics
     const totalFailingStudents = failingStudents.length;
-    const severeFailures = failingStudents.filter(fs => fs.failureLevel === 'severe').length;
-    const moderateFailures = failingStudents.filter(fs => fs.failureLevel === 'moderate').length;
+    const severeFailures = failingStudents.filter(
+      (fs) => fs.failureLevel === 'severe',
+    ).length;
+    const moderateFailures = failingStudents.filter(
+      (fs) => fs.failureLevel === 'moderate',
+    ).length;
     const averageFailingScore =
       totalFailingStudents > 0
         ? failingStudents.reduce((sum, fs) => sum + fs.score, 0) /
@@ -1118,7 +1153,7 @@ export class ReportService {
 
     // Most failed subject
     const subjectFailureCounts = new Map<string, number>();
-    failingStudents.forEach(fs => {
+    failingStudents.forEach((fs) => {
       const count = subjectFailureCounts.get(fs.subject) || 0;
       subjectFailureCounts.set(fs.subject, count + 1);
     });
@@ -1132,7 +1167,7 @@ export class ReportService {
 
     // Most failed class
     const classFailureCounts = new Map<string, number>();
-    failingStudents.forEach(fs => {
+    failingStudents.forEach((fs) => {
       const count = classFailureCounts.get(fs.className) || 0;
       classFailureCounts.set(fs.className, count + 1);
     });
@@ -1203,13 +1238,17 @@ export class ReportService {
     const timeSlots = this.generateTimeSlots(start, end, groupBy);
 
     timeSlots.forEach((slot) => {
-      const slotExams = studentExams.filter(exam => {
+      const slotExams = studentExams.filter((exam) => {
         const examDate = new Date(exam.submittedAt);
         return examDate >= slot.start && examDate <= slot.end;
       });
 
-      const practiceCount = slotExams.filter(se => se.exam.examType === 'practice').length;
-      const officialCount = slotExams.filter(se => se.exam.examType === 'official').length;
+      const practiceCount = slotExams.filter(
+        (se) => se.exam.examType === 'practice',
+      ).length;
+      const officialCount = slotExams.filter(
+        (se) => se.exam.examType === 'official',
+      ).length;
       const totalCount = slotExams.length;
 
       dataPoints.push({
@@ -1368,9 +1407,9 @@ export class ReportService {
       endDate: prevEnd.toISOString().split('T')[0],
     };
 
-    const prevDateRange = { 
-      start: prevStart.toISOString().split('T')[0], 
-      end: prevEnd.toISOString().split('T')[0] 
+    const prevDateRange = {
+      start: prevStart.toISOString().split('T')[0],
+      end: prevEnd.toISOString().split('T')[0],
     };
 
     // Build where conditions for previous period
@@ -1429,12 +1468,15 @@ export class ReportService {
           prevOfficial > 0
             ? ((currentOfficial - prevOfficial) / prevOfficial) * 100
             : 0,
-        totalChange: prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal) * 100 : 0,
-        },
+        totalChange:
+          prevTotal > 0 ? ((currentTotal - prevTotal) / prevTotal) * 100 : 0,
+      },
     };
   }
 
-  private calculateTrend(data: number[]): 'increasing' | 'decreasing' | 'stable' {
+  private calculateTrend(
+    data: number[],
+  ): 'increasing' | 'decreasing' | 'stable' {
     if (data.length < 2) return 'stable';
 
     const mid = Math.floor(data.length / 2);
@@ -1463,21 +1505,25 @@ export class ReportService {
     const timeSlots = this.generateTimeSlots(start, end, groupBy);
 
     timeSlots.forEach((slot) => {
-      const slotExams = studentExams.filter(exam => {
+      const slotExams = studentExams.filter((exam) => {
         const examDate = new Date(exam.submittedAt);
         return examDate >= slot.start && examDate <= slot.end;
       });
 
       // Separate by exam type
-      const practiceExams = slotExams.filter(se => se.exam.examType === 'practice');
-      const officialExams = slotExams.filter(se => se.exam.examType === 'official');
-      
+      const practiceExams = slotExams.filter(
+        (se) => se.exam.examType === 'practice',
+      );
+      const officialExams = slotExams.filter(
+        (se) => se.exam.examType === 'official',
+      );
+
       // Calculate statistics for practice exams
       const practiceStats = this.calculateStatsForExams(practiceExams);
-      
+
       // Calculate statistics for official exams
       const officialStats = this.calculateStatsForExams(officialExams);
-      
+
       // Calculate overall statistics
       const overallStats = this.calculateStatsForExams(slotExams);
 
@@ -1509,16 +1555,17 @@ export class ReportService {
       };
     }
 
-    const scores = exams.map(exam => exam.score || 0);
+    const scores = exams.map((exam) => exam.score || 0);
     const count = scores.length;
     const averageScore = scores.reduce((a, b) => a + b, 0) / count;
     const minScore = Math.min(...scores);
     const maxScore = Math.max(...scores);
-    
+
     // Calculate standard deviation
-    const variance = scores.reduce((sum, score) => {
-      return sum + Math.pow(score - averageScore, 2);
-    }, 0) / count;
+    const variance =
+      scores.reduce((sum, score) => {
+        return sum + Math.pow(score - averageScore, 2);
+      }, 0) / count;
     const standardDeviation = Math.sqrt(variance);
 
     return {
@@ -1541,33 +1588,42 @@ export class ReportService {
       return { excellent: 0, good: 0, average: 0, belowAverage: 0, poor: 0 };
     }
 
-    const excellent = scores.filter(s => s >= 90).length;
-    const good = scores.filter(s => s >= 80 && s < 90).length;
-    const average = scores.filter(s => s >= 70 && s < 80).length;
-    const belowAverage = scores.filter(s => s >= 60 && s < 70).length;
-    const poor = scores.filter(s => s < 60).length;
+    const excellent = scores.filter((s) => s >= 90).length;
+    const good = scores.filter((s) => s >= 80 && s < 90).length;
+    const average = scores.filter((s) => s >= 70 && s < 80).length;
+    const belowAverage = scores.filter((s) => s >= 60 && s < 70).length;
+    const poor = scores.filter((s) => s < 60).length;
 
     return { excellent, good, average, belowAverage, poor };
   }
 
-  private calculateScoreStatisticsSummary(studentExams: any[]): ScoreStatisticsSummary {
+  private calculateScoreStatisticsSummary(
+    studentExams: any[],
+  ): ScoreStatisticsSummary {
     // Separate by exam type
-    const practiceExams = studentExams.filter(se => se.exam.examType === 'practice');
-    const officialExams = studentExams.filter(se => se.exam.examType === 'official');
+    const practiceExams = studentExams.filter(
+      (se) => se.exam.examType === 'practice',
+    );
+    const officialExams = studentExams.filter(
+      (se) => se.exam.examType === 'official',
+    );
 
     // Calculate practice exam statistics
     const practiceStats = this.calculateStatsForExams(practiceExams);
-    const practiceScores = practiceExams.map(exam => exam.score || 0);
-    const practiceDistribution = this.calculateScoreDistribution(practiceScores);
+    const practiceScores = practiceExams.map((exam) => exam.score || 0);
+    const practiceDistribution =
+      this.calculateScoreDistribution(practiceScores);
 
     // Calculate official exam statistics
     const officialStats = this.calculateStatsForExams(officialExams);
-    const officialScores = officialExams.map(exam => exam.score || 0);
-    const officialDistribution = this.calculateScoreDistribution(officialScores);
+    const officialScores = officialExams.map((exam) => exam.score || 0);
+    const officialDistribution =
+      this.calculateScoreDistribution(officialScores);
 
     // Calculate comparison
-    const averageScoreDifference = practiceStats.averageScore - officialStats.averageScore;
-    
+    const averageScoreDifference =
+      practiceStats.averageScore - officialStats.averageScore;
+
     let performanceTrend: 'practice_better' | 'official_better' | 'similar';
     if (Math.abs(averageScoreDifference) < 2) {
       performanceTrend = 'similar';
@@ -1577,8 +1633,12 @@ export class ReportService {
       performanceTrend = 'official_better';
     }
 
-    let consistencyComparison: 'practice_more_consistent' | 'official_more_consistent' | 'similar';
-    const consistencyDiff = practiceStats.standardDeviation - officialStats.standardDeviation;
+    let consistencyComparison:
+      | 'practice_more_consistent'
+      | 'official_more_consistent'
+      | 'similar';
+    const consistencyDiff =
+      practiceStats.standardDeviation - officialStats.standardDeviation;
     if (Math.abs(consistencyDiff) < 1) {
       consistencyComparison = 'similar';
     } else if (consistencyDiff < 0) {
@@ -1612,7 +1672,10 @@ export class ReportService {
     };
   }
 
-  private generateScoreStatisticsInsights(studentExams: any[], summary: ScoreStatisticsSummary): {
+  private generateScoreStatisticsInsights(
+    studentExams: any[],
+    summary: ScoreStatisticsSummary,
+  ): {
     scoreImprovement: string;
     consistencyAnalysis: string;
     recommendations: string[];
@@ -1633,9 +1696,13 @@ export class ReportService {
     }
 
     // Consistency analysis
-    if (summary.comparison.consistencyComparison === 'practice_more_consistent') {
+    if (
+      summary.comparison.consistencyComparison === 'practice_more_consistent'
+    ) {
       insights.consistencyAnalysis = `Học sinh có độ ổn định cao hơn ở bài luyện tập (độ lệch chuẩn: ${summary.practiceExams.standardDeviation}) so với bài chính thức (${summary.officialExams.standardDeviation})`;
-    } else if (summary.comparison.consistencyComparison === 'official_more_consistent') {
+    } else if (
+      summary.comparison.consistencyComparison === 'official_more_consistent'
+    ) {
       insights.consistencyAnalysis = `Học sinh có độ ổn định cao hơn ở bài chính thức (độ lệch chuẩn: ${summary.officialExams.standardDeviation}) so với bài luyện tập (${summary.practiceExams.standardDeviation})`;
     } else {
       insights.consistencyAnalysis = `Độ ổn định điểm số giữa bài luyện tập và chính thức khá tương đương`;
@@ -1674,6 +1741,4 @@ export class ReportService {
 
     return insights;
   }
-
-
 }

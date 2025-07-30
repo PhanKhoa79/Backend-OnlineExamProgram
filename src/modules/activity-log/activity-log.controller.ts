@@ -131,7 +131,7 @@ export class ActivityLogController {
    */
   private formatDisplayMessage(activity: any): string {
     const accountName = activity.account?.accountname || 'Người dùng';
-    const timestamp = activity.createdAt 
+    const timestamp = activity.createdAt
       ? new Date(activity.createdAt).toLocaleString('vi-VN', {
           hour: '2-digit',
           minute: '2-digit',
@@ -139,7 +139,7 @@ export class ActivityLogController {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
-        }) 
+        })
       : '';
 
     // Nếu có description sẵn, sử dụng nó

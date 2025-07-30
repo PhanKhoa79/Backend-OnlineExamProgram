@@ -82,16 +82,16 @@ export function convertToTimezone(date: Date, timezone: string): Date {
 
 function getTimezoneOffset(timezone: string): number {
   const timezoneOffsets: Record<string, number> = {
-    'UTC': 0,
-    'GMT': 0,
-    'EST': -5,
-    'PST': -8,
-    'JST': 9,
-    'IST': 5.5,
-    'CET': 1,
-    'MST': -7,
-    'CST': -6,
-    'ICT': 7, // Indochina Time (Vietnam, Thailand, Laos, Cambodia)
+    UTC: 0,
+    GMT: 0,
+    EST: -5,
+    PST: -8,
+    JST: 9,
+    IST: 5.5,
+    CET: 1,
+    MST: -7,
+    CST: -6,
+    ICT: 7, // Indochina Time (Vietnam, Thailand, Laos, Cambodia)
   };
 
   return timezoneOffsets[timezone] || 0;

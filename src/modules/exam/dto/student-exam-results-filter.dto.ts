@@ -34,4 +34,4 @@ export class StudentExamResultsFilterDto {
     message: 'endDate must be in format YYYY-MM-DD',
   })
   endDate?: string; // Format: YYYY-MM-DD
-} 
+}

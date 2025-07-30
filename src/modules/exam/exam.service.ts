@@ -1291,31 +1291,31 @@ export class ExamService {
    * Bắt đầu làm bài thi - tạo hoặc lấy StudentExam hiện có
    *
    * 🕐 VÍ DỤ TÍNH TOÁN THỜI GIAN THEO LOẠI ĐỀ THI:
-   * 
+   *
    * 📚 ĐỀ THI LUYỆN TẬP (Practice):
    * - Đề thi có thời gian: 90 phút (5400 giây)
    * - Sinh viên bắt đầu lúc: 7:22:00 (startedAt)
    * - Sinh viên làm được 8 phút rồi thoát: 7:30:00
    * - Sinh viên vào lại lúc: 8:00:15
    * - actualWorkingTimeSeconds = 8 phút = 480 giây
-   * 
+   *
    * Khi gọi startExam lần 2 (8:00:15):
    * - timeElapsedSeconds = 480 giây (chỉ tính thời gian thực tế làm bài)
    * - timeRemainingSeconds = 5400 - 480 = 4920 giây = 82 phút
    * - timeRemainingFormatted = "82:00"
-   * 
+   *
    * 📝 ĐỀ THI CHÍNH THỨC (Official):
    * - Đề thi có thời gian: 90 phút (5400 giây)
    * - Sinh viên bắt đầu lúc: 7:22:00 (startedAt)
    * - Sinh viên thoát lúc: 7:30:00
    * - Sinh viên vào lại lúc: 8:00:15
-   * 
+   *
    * Khi gọi startExam lần 2 (8:00:15):
    * - timeElapsedSeconds = 8:00:15 - 7:22:00 = 2295 giây (38 phút 15 giây)
    * - timeRemainingSeconds = 5400 - 2295 = 3105 giây = 51 phút 45 giây
    * - timeRemainingFormatted = "51:45"
    *
-   * ⚠️ LƯU Ý: 
+   * ⚠️ LƯU Ý:
    * - Practice exam: Pause thời gian khi thoát, chỉ tính thời gian thực tế làm bài
    * - Official exam: Thời gian chạy liên tục, không pause khi thoát
    */
@@ -1372,10 +1372,15 @@ export class ExamService {
 
     if (examType === 'practice') {
       // 🏃‍♂️ ĐỀ THI LUYỆN TẬP: Tính thời gian thực tế từ câu trả lời
-      const actualWorkingTimeSeconds = await this.calculateActualWorkingTime(studentExam.id);
+      const actualWorkingTimeSeconds = await this.calculateActualWorkingTime(
+        studentExam.id,
+      );
       timeElapsedSeconds = actualWorkingTimeSeconds;
-      timeRemainingSeconds = Math.max(0, examDurationSeconds - timeElapsedSeconds);
-      
+      timeRemainingSeconds = Math.max(
+        0,
+        examDurationSeconds - timeElapsedSeconds,
+      );
+
       this.logger.log(
         `Practice exam resume: studentExamId=${studentExam.id}, actualWorkingTime=${actualWorkingTimeSeconds}s, remaining=${timeRemainingSeconds}s`,
       );
@@ -1383,8 +1388,11 @@ export class ExamService {
       // ⏰ ĐỀ THI CHÍNH THỨC: Thời gian chạy liên tục từ lúc bắt đầu
       const timeElapsedMs = currentTime.getTime() - startedAt.getTime();
       timeElapsedSeconds = Math.max(0, Math.floor(timeElapsedMs / 1000));
-      timeRemainingSeconds = Math.max(0, examDurationSeconds - timeElapsedSeconds);
-      
+      timeRemainingSeconds = Math.max(
+        0,
+        examDurationSeconds - timeElapsedSeconds,
+      );
+
       this.logger.log(
         `Official exam time check: studentExamId=${studentExam.id}, elapsed=${timeElapsedSeconds}s, remaining=${timeRemainingSeconds}s`,
       );
@@ -1612,11 +1620,7 @@ export class ExamService {
       });
 
       // Lưu vào cache với TTL ngắn hơn (2 phút) vì tiến độ có thể thay đổi thường xuyên
-      await this.redisService.set(
-        cacheKey,
-        JSON.stringify(result),
-        120,
-      );
+      await this.redisService.set(cacheKey, JSON.stringify(result), 120);
 
       return result;
     } catch (error) {
@@ -2632,16 +2636,18 @@ export class ExamService {
     }
   }
 
-
-
   /**
    * 🔥 THÊM: Helper method để tính thời gian làm bài thực tế cho practice exam
    * Tính dựa trên các session làm bài (từ lúc bắt đầu đến lúc có hoạt động cuối cùng)
    */
-  private async calculateActualWorkingTime(studentExamId: number): Promise<number> {
+  private async calculateActualWorkingTime(
+    studentExamId: number,
+  ): Promise<number> {
     try {
       // Lấy StudentExam để có startedAt
-      const studentExam = await this.studentExamRepo.findOneBy({ id: studentExamId });
+      const studentExam = await this.studentExamRepo.findOneBy({
+        id: studentExamId,
+      });
       if (!studentExam || !studentExam.startedAt) {
         return 0;
       }
@@ -2665,15 +2671,17 @@ export class ExamService {
       for (const answer of answers) {
         if (!answer.answeredAt) continue;
 
-        const timeBetween = answer.answeredAt.getTime() - lastActivityTime.getTime();
+        const timeBetween =
+          answer.answeredAt.getTime() - lastActivityTime.getTime();
         const minutesBetween = timeBetween / (1000 * 60);
 
         // Nếu khoảng cách > 10 phút, coi như session mới
         if (minutesBetween > 10) {
           // Kết thúc session cũ
-          const sessionDuration = (lastActivityTime.getTime() - sessionStartTime.getTime()) / 1000;
+          const sessionDuration =
+            (lastActivityTime.getTime() - sessionStartTime.getTime()) / 1000;
           totalWorkingTimeSeconds += Math.max(0, sessionDuration);
-          
+
           // Bắt đầu session mới
           sessionStartTime = answer.answeredAt;
         }
@@ -2682,15 +2690,19 @@ export class ExamService {
       }
 
       // Thêm session cuối cùng
-      const finalSessionDuration = (lastActivityTime.getTime() - sessionStartTime.getTime()) / 1000;
+      const finalSessionDuration =
+        (lastActivityTime.getTime() - sessionStartTime.getTime()) / 1000;
       totalWorkingTimeSeconds += Math.max(0, finalSessionDuration);
 
       // Đảm bảo thời gian >= 0 và <= 10 giờ (36000 giây) để tránh bug
-      totalWorkingTimeSeconds = Math.max(0, Math.min(totalWorkingTimeSeconds, 36000));
+      totalWorkingTimeSeconds = Math.max(
+        0,
+        Math.min(totalWorkingTimeSeconds, 36000),
+      );
 
       this.logger.log(
         `Calculated actual working time for practice exam: studentExamId=${studentExamId}, ` +
-        `totalSessions=${answers.length}, workingTime=${Math.floor(totalWorkingTimeSeconds)}s (${Math.floor(totalWorkingTimeSeconds/60)}m)`,
+          `totalSessions=${answers.length}, workingTime=${Math.floor(totalWorkingTimeSeconds)}s (${Math.floor(totalWorkingTimeSeconds / 60)}m)`,
       );
 
       return Math.floor(totalWorkingTimeSeconds);
@@ -2764,7 +2776,9 @@ export class ExamService {
 
     if (filters?.classId) {
       // Lấy tên lớp từ kết quả (vì đã có trong data)
-      const firstResultWithClass = results.find((r) => r.classId === filters.classId);
+      const firstResultWithClass = results.find(
+        (r) => r.classId === filters.classId,
+      );
       summarySheet.addRow({
         field: 'Lớp được lọc',
         value: firstResultWithClass?.class || `ID: ${filters.classId}`,
@@ -2773,7 +2787,9 @@ export class ExamService {
 
     if (filters?.subjectId) {
       // Lấy tên môn từ kết quả
-      const firstResultWithSubject = results.find((r) => r.subjectId === filters.subjectId);
+      const firstResultWithSubject = results.find(
+        (r) => r.subjectId === filters.subjectId,
+      );
       summarySheet.addRow({
         field: 'Môn học được lọc',
         value: firstResultWithSubject?.subject || `ID: ${filters.subjectId}`,
@@ -2922,13 +2938,21 @@ export class ExamService {
     csvRows.push(`Ngày xuất báo cáo,"${new Date().toLocaleString('vi-VN')}"`);
 
     if (filters?.classId) {
-      const firstResultWithClass = results.find((r) => r.classId === filters.classId);
-      csvRows.push(`Lớp được lọc,"${firstResultWithClass?.class || `ID: ${filters.classId}`}"`);
+      const firstResultWithClass = results.find(
+        (r) => r.classId === filters.classId,
+      );
+      csvRows.push(
+        `Lớp được lọc,"${firstResultWithClass?.class || `ID: ${filters.classId}`}"`,
+      );
     }
 
     if (filters?.subjectId) {
-      const firstResultWithSubject = results.find((r) => r.subjectId === filters.subjectId);
-      csvRows.push(`Môn học được lọc,"${firstResultWithSubject?.subject || `ID: ${filters.subjectId}`}"`);
+      const firstResultWithSubject = results.find(
+        (r) => r.subjectId === filters.subjectId,
+      );
+      csvRows.push(
+        `Môn học được lọc,"${firstResultWithSubject?.subject || `ID: ${filters.subjectId}`}"`,
+      );
     }
 
     if (filters?.examType) {
@@ -2942,7 +2966,9 @@ export class ExamService {
     }
 
     if (filters?.startDate && filters?.endDate) {
-      csvRows.push(`Khoảng thời gian,"Từ ${filters.startDate} đến ${filters.endDate}"`);
+      csvRows.push(
+        `Khoảng thời gian,"Từ ${filters.startDate} đến ${filters.endDate}"`,
+      );
     }
 
     // Thống kê

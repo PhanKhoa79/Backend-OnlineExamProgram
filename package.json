@@ -24,6 +24,7 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run --dataSource src/database/data-source.ts"
   },
   "dependencies": {
+    "@google-cloud/dialogflow": "^7.2.0",
     "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.0.1",

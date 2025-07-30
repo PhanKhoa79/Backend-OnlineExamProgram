@@ -11,7 +11,7 @@ import {
 @Injectable()
 export class AnalyticsCacheService {
   private readonly logger = new Logger(AnalyticsCacheService.name);
-  
+
   // Cache TTL (Time To Live) configurations
   private readonly CACHE_TTL = {
     SUMMARY: 300,
@@ -53,7 +53,7 @@ export class AnalyticsCacheService {
     // Create hash from parameters
     const paramsString = JSON.stringify(sortedParams);
     const hash = createHash('md5').update(paramsString).digest('hex');
-    
+
     return `${prefix}:${hash}`;
   }
 
@@ -82,10 +82,10 @@ export class AnalyticsCacheService {
    * Set analytics data to cache
    */
   async setCachedData<T>(
-    prefix: string, 
-    queryParams: any, 
-    data: T, 
-    customTTL?: number
+    prefix: string,
+    queryParams: any,
+    data: T,
+    customTTL?: number,
   ): Promise<void> {
     try {
       const cacheKey = this.generateCacheKey(prefix, queryParams);
@@ -190,50 +190,92 @@ export class AnalyticsCacheService {
     );
   }
 
-
-
   /**
    * Exam Volume Cache Methods
    */
-  async getCachedExamVolume(queryParams: any): Promise<ExamVolumeResponseDto | null> {
-    return this.getCachedData<ExamVolumeResponseDto>(this.CACHE_PREFIX.EXAM_VOLUME, queryParams);
+  async getCachedExamVolume(
+    queryParams: any,
+  ): Promise<ExamVolumeResponseDto | null> {
+    return this.getCachedData<ExamVolumeResponseDto>(
+      this.CACHE_PREFIX.EXAM_VOLUME,
+      queryParams,
+    );
   }
 
-  async setCachedExamVolume(queryParams: any, data: ExamVolumeResponseDto): Promise<void> {
+  async setCachedExamVolume(
+    queryParams: any,
+    data: ExamVolumeResponseDto,
+  ): Promise<void> {
     return this.setCachedData(this.CACHE_PREFIX.EXAM_VOLUME, queryParams, data);
   }
 
   /**
    * Score Statistics Cache Methods
    */
-  async getCachedScoreStatistics(queryParams: any): Promise<ScoreStatisticsResponseDto | null> {
-    return this.getCachedData<ScoreStatisticsResponseDto>(this.CACHE_PREFIX.SCORE_STATISTICS, queryParams);
+  async getCachedScoreStatistics(
+    queryParams: any,
+  ): Promise<ScoreStatisticsResponseDto | null> {
+    return this.getCachedData<ScoreStatisticsResponseDto>(
+      this.CACHE_PREFIX.SCORE_STATISTICS,
+      queryParams,
+    );
   }
 
-  async setCachedScoreStatistics(queryParams: any, data: ScoreStatisticsResponseDto): Promise<void> {
-    return this.setCachedData(this.CACHE_PREFIX.SCORE_STATISTICS, queryParams, data);
+  async setCachedScoreStatistics(
+    queryParams: any,
+    data: ScoreStatisticsResponseDto,
+  ): Promise<void> {
+    return this.setCachedData(
+      this.CACHE_PREFIX.SCORE_STATISTICS,
+      queryParams,
+      data,
+    );
   }
 
   /**
    * Failing Students Cache Methods
    */
-  async getCachedFailingStudents(queryParams: any): Promise<FailingStudentsResponseDto | null> {
-    return this.getCachedData<FailingStudentsResponseDto>(this.CACHE_PREFIX.FAILING_STUDENTS, queryParams);
+  async getCachedFailingStudents(
+    queryParams: any,
+  ): Promise<FailingStudentsResponseDto | null> {
+    return this.getCachedData<FailingStudentsResponseDto>(
+      this.CACHE_PREFIX.FAILING_STUDENTS,
+      queryParams,
+    );
   }
 
-  async setCachedFailingStudents(queryParams: any, data: FailingStudentsResponseDto): Promise<void> {
-    return this.setCachedData(this.CACHE_PREFIX.FAILING_STUDENTS, queryParams, data);
+  async setCachedFailingStudents(
+    queryParams: any,
+    data: FailingStudentsResponseDto,
+  ): Promise<void> {
+    return this.setCachedData(
+      this.CACHE_PREFIX.FAILING_STUDENTS,
+      queryParams,
+      data,
+    );
   }
 
   /**
    * Top Students Cache Methods
    */
-  async getCachedTopStudents(queryParams: any): Promise<TopStudentsResponseDto | null> {
-    return this.getCachedData<TopStudentsResponseDto>(this.CACHE_PREFIX.TOP_STUDENTS, queryParams);
+  async getCachedTopStudents(
+    queryParams: any,
+  ): Promise<TopStudentsResponseDto | null> {
+    return this.getCachedData<TopStudentsResponseDto>(
+      this.CACHE_PREFIX.TOP_STUDENTS,
+      queryParams,
+    );
   }
 
-  async setCachedTopStudents(queryParams: any, data: TopStudentsResponseDto): Promise<void> {
-    return this.setCachedData(this.CACHE_PREFIX.TOP_STUDENTS, queryParams, data);
+  async setCachedTopStudents(
+    queryParams: any,
+    data: TopStudentsResponseDto,
+  ): Promise<void> {
+    return this.setCachedData(
+      this.CACHE_PREFIX.TOP_STUDENTS,
+      queryParams,
+      data,
+    );
   }
 
   /**
@@ -243,12 +285,14 @@ export class AnalyticsCacheService {
     try {
       const searchPattern = pattern || 'analytics:*';
       const keys = await this.redisService.keys(searchPattern);
-      
+
       if (keys.length > 0) {
         for (const key of keys) {
           await this.redisService.del(key);
         }
-        this.logger.log(`Invalidated ${keys.length} cache keys matching pattern: ${searchPattern}`);
+        this.logger.log(
+          `Invalidated ${keys.length} cache keys matching pattern: ${searchPattern}`,
+        );
       }
     } catch (error) {
       this.logger.error(`Error invalidating cache: ${error.message}`);
@@ -267,21 +311,25 @@ export class AnalyticsCacheService {
   }
 
   async invalidateSubjectPerformanceCache(): Promise<void> {
-    return this.invalidateAnalyticsCache(`${this.CACHE_PREFIX.SUBJECT_PERFORMANCE}:*`);
+    return this.invalidateAnalyticsCache(
+      `${this.CACHE_PREFIX.SUBJECT_PERFORMANCE}:*`,
+    );
   }
 
   async invalidateScoreDistributionCache(): Promise<void> {
-    return this.invalidateAnalyticsCache(`${this.CACHE_PREFIX.SCORE_DISTRIBUTION}:*`);
+    return this.invalidateAnalyticsCache(
+      `${this.CACHE_PREFIX.SCORE_DISTRIBUTION}:*`,
+    );
   }
-
-
 
   async invalidateExamVolumeCache(): Promise<void> {
     return this.invalidateAnalyticsCache(`${this.CACHE_PREFIX.EXAM_VOLUME}:*`);
   }
 
   async invalidateFailingStudentsCache(): Promise<void> {
-    return this.invalidateAnalyticsCache(`${this.CACHE_PREFIX.FAILING_STUDENTS}:*`);
+    return this.invalidateAnalyticsCache(
+      `${this.CACHE_PREFIX.FAILING_STUDENTS}:*`,
+    );
   }
 
   async invalidateTopStudentsCache(): Promise<void> {
@@ -300,13 +348,15 @@ export class AnalyticsCacheService {
       const keysByPrefix: Record<string, number> = {};
 
       // Count keys by prefix
-      Object.values(this.CACHE_PREFIX).forEach(prefix => {
-        keysByPrefix[prefix] = allKeys.filter(key => key.startsWith(prefix)).length;
+      Object.values(this.CACHE_PREFIX).forEach((prefix) => {
+        keysByPrefix[prefix] = allKeys.filter((key) =>
+          key.startsWith(prefix),
+        ).length;
       });
 
       return {
         totalKeys: allKeys.length,
-        keysByPrefix
+        keysByPrefix,
       };
     } catch (error) {
       this.logger.error(`Error getting cache stats: ${error.message}`);
@@ -323,4 +373,4 @@ export class AnalyticsCacheService {
     // For now, it's just a placeholder
     this.logger.log('Cache warm-up completed');
   }
-} 
+}

@@ -71,8 +71,9 @@ export class BaseAnalyticsQueryDto {
   @Type(() => Number)
   @Transform(({ value }) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(v => Number(v));
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (Array.isArray(value)) return value.map((v) => Number(v));
+    if (typeof value === 'string')
+      return value.split(',').map((v) => Number(v.trim()));
     return [Number(value)];
   })
   classIds?: number[];
@@ -82,8 +83,9 @@ export class BaseAnalyticsQueryDto {
   @Type(() => Number)
   @Transform(({ value }) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(v => Number(v));
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (Array.isArray(value)) return value.map((v) => Number(v));
+    if (typeof value === 'string')
+      return value.split(',').map((v) => Number(v.trim()));
     return [Number(value)];
   })
   subjectIds?: number[];
@@ -97,8 +99,9 @@ export class BaseAnalyticsQueryDto {
   @Type(() => Number)
   @Transform(({ value }) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(v => Number(v));
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (Array.isArray(value)) return value.map((v) => Number(v));
+    if (typeof value === 'string')
+      return value.split(',').map((v) => Number(v.trim()));
     return [Number(value)];
   })
   studentIds?: number[];
@@ -125,8 +128,9 @@ export class ScoreTrendsQueryDto {
   @Type(() => Number)
   @Transform(({ value }) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(v => Number(v));
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (Array.isArray(value)) return value.map((v) => Number(v));
+    if (typeof value === 'string')
+      return value.split(',').map((v) => Number(v.trim()));
     return [Number(value)];
   })
   classIds?: number[];
@@ -136,8 +140,9 @@ export class ScoreTrendsQueryDto {
   @Type(() => Number)
   @Transform(({ value }) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(v => Number(v));
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (Array.isArray(value)) return value.map((v) => Number(v));
+    if (typeof value === 'string')
+      return value.split(',').map((v) => Number(v.trim()));
     return [Number(value)];
   })
   subjectIds?: number[];
@@ -154,8 +159,9 @@ export class SubjectPerformanceQueryDto {
   @Type(() => Number)
   @Transform(({ value }) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(v => Number(v));
-    if (typeof value === 'string') return value.split(',').map(v => Number(v.trim()));
+    if (Array.isArray(value)) return value.map((v) => Number(v));
+    if (typeof value === 'string')
+      return value.split(',').map((v) => Number(v.trim()));
     return [Number(value)];
   })
   classIds?: number[];
@@ -468,4 +474,4 @@ export class FailingStudentsQueryDto {
   @IsOptional()
   @IsEnum(['asc', 'desc'])
   sortByScore?: 'asc' | 'desc'; // không sắp xếp mặc định
-} 
+}

@@ -74,7 +74,7 @@ export class ActivityLogService {
    */
   private formatDisplayMessage(activityLog: ActivityLogs): string {
     const userName = activityLog.account?.accountname || 'Hệ thống';
-    const timestamp = activityLog.createdAt 
+    const timestamp = activityLog.createdAt
       ? new Date(activityLog.createdAt).toLocaleString('vi-VN', {
           hour: '2-digit',
           minute: '2-digit',
@@ -82,7 +82,7 @@ export class ActivityLogService {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
-        }) 
+        })
       : '';
     return `Người dùng ${userName} ${activityLog.description} vào ${timestamp}`;
   }

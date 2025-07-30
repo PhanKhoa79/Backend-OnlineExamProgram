@@ -1,5 +1,6 @@
 import { webcrypto } from 'node:crypto';
 if (!globalThis.crypto) {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   globalThis.crypto = webcrypto as any;
 }
 import {
@@ -36,6 +37,7 @@ import { ActivityLogModule } from './modules/activity-log/activity-log.module';
 import { ActivityLogInterceptor } from './common/interceptors/activity-log.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ReportModule } from './modules/report/report.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 
 const modules = [
   AuthModule,
@@ -57,6 +59,7 @@ const modules = [
   NotificationModule,
   ActivityLogModule,
   ReportModule,
+  ChatbotModule,
 ];
 
 @Module({
@@ -107,6 +110,7 @@ export class AppModule implements NestModule {
         { path: 'auth/verify-reset-code', method: RequestMethod.POST },
         { path: 'auth/logout', method: RequestMethod.POST },
         { path: 'auth/request-activation', method: RequestMethod.POST },
+        { path: 'chatbot/webhook', method: RequestMethod.POST },
       )
       .forRoutes('*');
   }

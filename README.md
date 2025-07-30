@@ -265,35 +265,39 @@ MAIL_FROM=your-email@gmail.com
 
 ### 🔑 Các Biến Quan Trọng
 
-| Biến | Mô tả | Ví dụ | Bắt buộc |
-|------|-------|-------|----------|
-| `DB_PASSWORD` | Mật khẩu database | `MySecretPassword123` | ✅ |
-| `JWT_SECRET` | Secret key cho JWT | `super-secret-key-256-bit` | ✅ |
-| `EMAIL_USER` | Email để gửi thông báo | `noreply@yourapp.com` | ✅ |
-| `CLIENT_URL` | URL của frontend | `https://yourapp.com` | ✅ |
-| `REDIS_PASSWORD` | Mật khẩu Redis | `redis-password` | ❌ |
+| Biến             | Mô tả                  | Ví dụ                      | Bắt buộc |
+| ---------------- | ---------------------- | -------------------------- | -------- |
+| `DB_PASSWORD`    | Mật khẩu database      | `MySecretPassword123`      | ✅       |
+| `JWT_SECRET`     | Secret key cho JWT     | `super-secret-key-256-bit` | ✅       |
+| `EMAIL_USER`     | Email để gửi thông báo | `noreply@yourapp.com`      | ✅       |
+| `CLIENT_URL`     | URL của frontend       | `https://yourapp.com`      | ✅       |
+| `REDIS_PASSWORD` | Mật khẩu Redis         | `redis-password`           | ❌       |
 
 ---
 
 ## 🎯 Chức Năng Chính
 
 ### 👥 **Quản Lý Người Dùng**
+
 - 🔐 **Xác thực & Phân quyền**: Đăng nhập/đăng xuất với JWT
 - 👤 **Profile Management**: Quản lý thông tin cá nhân
 - 🎭 **Role-based Access**: Phân quyền Giáo viên/Học sinh/Admin
 
 ### 📚 **Quản Lý Học Tập**
+
 - 🏫 **Classes**: Quản lý lớp học và khóa học
 - 📖 **Subjects**: Quản lý môn học
 - 👨‍🎓 **Students**: Quản lý thông tin học sinh
 
 ### 📝 **Hệ Thống Thi Cử**
+
 - ❓ **Questions Management**: Tạo và quản lý ngân hàng câu hỏi
 - 📋 **Exam Creation**: Tạo đề thi với cấu hình linh hoạt
 - 📅 **Exam Scheduling**: Lập lịch thi và phân công
 - ✅ **Answer Processing**: Xử lý và lưu trữ bài làm
 
 ### 🛡️ **An Toàn & Giám Sát**
+
 - 🔍 **Anti-Cheat System**: Hệ thống chống gian lận
 - 📊 **Monitoring Logs**: Ghi log hoạt động thi cử
 - 🚫 **Token Blacklist**: Quản lý token bị vô hiệu hóa
@@ -304,43 +308,47 @@ MAIL_FROM=your-email@gmail.com
 
 ### 🐳 Docker Commands
 
-| Command | Mô tả | Icon |
-|---------|-------|------|
-| `docker-compose up -d --build` | Build và khởi chạy tất cả services | 🚀 |
-| `docker-compose down` | Dừng tất cả services | 🛑 |
-| `docker-compose logs -f api` | Xem logs API real-time | 📋 |
-| `docker-compose exec api npm run migration:run` | Chạy database migrations | 🗄️ |
-| `docker-compose exec api npm run seed` | Seed dữ liệu mẫu | 🌱 |
+| Command                                         | Mô tả                              | Icon |
+| ----------------------------------------------- | ---------------------------------- | ---- |
+| `docker-compose up -d --build`                  | Build và khởi chạy tất cả services | 🚀   |
+| `docker-compose down`                           | Dừng tất cả services               | 🛑   |
+| `docker-compose logs -f api`                    | Xem logs API real-time             | 📋   |
+| `docker-compose exec api npm run migration:run` | Chạy database migrations           | 🗄️   |
+| `docker-compose exec api npm run seed`          | Seed dữ liệu mẫu                   | 🌱   |
 
 ### 💻 Development Commands
 
-| Command | Mô tả | Icon |
-|---------|-------|------|
-| `bun run start:dev` | Khởi chạy development server | 🚀 |
-| `bun run build` | Build cho production | 🏗️ |
-| `bun run test` | Chạy unit tests | 🧪 |
-| `bun run lint` | Kiểm tra code style | ✨ |
+| Command             | Mô tả                        | Icon |
+| ------------------- | ---------------------------- | ---- |
+| `bun run start:dev` | Khởi chạy development server | 🚀   |
+| `bun run build`     | Build cho production         | 🏗️   |
+| `bun run test`      | Chạy unit tests              | 🧪   |
+| `bun run lint`      | Kiểm tra code style          | ✨   |
 
 ---
 
 ## 🌐 API Endpoints
 
 ### 🔐 Authentication
+
 - `POST /api/auth/login` - Đăng nhập
 - `POST /api/auth/logout` - Đăng xuất
 - `POST /api/auth/refresh` - Refresh token
 
 ### 👥 Users & Accounts
+
 - `GET /api/account` - Lấy thông tin tài khoản
 - `PUT /api/account` - Cập nhật thông tin
 - `POST /api/account` - Tạo tài khoản mới
 
 ### 📚 Academic Management
+
 - `GET /api/classes` - Danh sách lớp học
 - `GET /api/subjects` - Danh sách môn học
 - `GET /api/students` - Danh sách học sinh
 
 ### 📝 Exam System
+
 - `GET /api/exam` - Danh sách kỳ thi
 - `POST /api/exam` - Tạo kỳ thi mới
 - `GET /api/questions` - Ngân hàng câu hỏi
@@ -354,6 +362,7 @@ MAIL_FROM=your-email@gmail.com
 ### 🌍 Deploy với Docker
 
 1. **Chuẩn bị server**
+
 ```bash
 # Cài đặt Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
@@ -365,6 +374,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 ```
 
 2. **Deploy application**
+
 ```bash
 # Clone code
 git clone https://github.com/your-repo/backend-onlineexam-program.git
@@ -379,6 +389,7 @@ docker-compose -f docker-compose.yml up -d --build
 ```
 
 3. **Setup Nginx (Reverse Proxy)**
+
 ```nginx
 server {
     listen 80;
@@ -405,6 +416,7 @@ server {
 ### ❌ Lỗi thường gặp
 
 **1. Container không khởi động được**
+
 ```bash
 # Kiểm tra logs
 docker-compose logs api
@@ -414,6 +426,7 @@ netstat -tulpn | grep :5000
 ```
 
 **2. Database connection failed**
+
 ```bash
 # Kiểm tra PostgreSQL container
 docker-compose logs postgres
@@ -423,6 +436,7 @@ docker-compose exec postgres psql -U postgres -d online_exam -c "SELECT 1;"
 ```
 
 **3. Redis connection failed**
+
 ```bash
 # Kiểm tra Redis container
 docker-compose logs redis
@@ -432,6 +446,7 @@ docker-compose exec redis redis-cli ping
 ```
 
 **4. Environment variables không load**
+
 ```bash
 # Kiểm tra file .env
 cat .env

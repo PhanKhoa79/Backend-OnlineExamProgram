@@ -248,7 +248,7 @@ export class StudentService {
           `Vui lòng tạo tài khoản cho ${result.success} sinh viên mới được thêm vào `,
           {
             studentCount: result.success,
-            studentIds: result.createdStudents.map(student => student.id),
+            studentIds: result.createdStudents.map((student) => student.id),
           },
         );
       }

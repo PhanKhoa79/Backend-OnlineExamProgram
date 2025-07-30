@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import {
   Injectable,
   NotFoundException,
@@ -78,10 +79,10 @@ export class ClassesService {
   async update(id: number, updateDto: UpdateClassDto): Promise<Classes> {
     const entity = await this.classRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException(`Không tìm thấy lớp học ID ${id}`);
-    
+
     // Kiểm tra xem lớp có đang có phòng thi mở không
     await checkActiveClassExams(this.examScheduleAssignmentsRepo, id);
-    
+
     const updated = this.classRepo.merge(entity, updateDto);
     const result = await this.classRepo.save(updated);
 
@@ -150,6 +151,45 @@ export class ClassesService {
       if (!entity)
         throw new NotFoundException(`Không tìm thấy lớp học ID ${id}`);
       return entity;
+    }
+  }
+
+  async findByCodeOrName(codeOrName: string): Promise<Classes | null> {
+    const cacheKey = `${this.CACHE_KEYS.CLASS_DETAIL}code_or_name_${codeOrName}`;
+
+    try {
+      // Thử lấy dữ liệu từ cache
+      const cachedData = await this.redisService.get(cacheKey);
+
+      if (cachedData) {
+        return JSON.parse(cachedData);
+      }
+
+      // Nếu không có trong cache, truy vấn database theo cả code và name
+      const entity = await this.classRepo.findOne({
+        where: [{ code: codeOrName }, { name: codeOrName }],
+      });
+
+      if (entity) {
+        // Lưu vào cache
+        await this.redisService.set(
+          cacheKey,
+          JSON.stringify(entity),
+          this.CACHE_TTL,
+        );
+      }
+
+      return entity;
+    } catch (error) {
+      this.logger.error(
+        `Error in findByCodeOrName: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+
+      // Nếu có lỗi với cache, vẫn truy vấn database
+      return this.classRepo.findOne({
+        where: [{ code: codeOrName }, { name: codeOrName }],
+      });
     }
   }
 

@@ -389,4 +389,22 @@ export class ExamScheduleService {
 
     return examSchedule.classes;
   }
+
+  // Lấy lịch thi theo lớp và môn học trong ngày hiện tại
+  async findByClassAndSubjectToday(
+    classId: number,
+    subjectId: number,
+    startOfDay: Date,
+  ): Promise<ExamSchedule[]> {
+    return await this.examScheduleRepo
+      .createQueryBuilder('schedule')
+      .leftJoinAndSelect('schedule.subject', 'subject')
+      .leftJoinAndSelect('schedule.classes', 'classes')
+      .where('classes.id = :classId', { classId })
+      .andWhere('schedule.subject.id = :subjectId', { subjectId })
+      .andWhere('schedule.startTime >= :startOfDay', { startOfDay })
+      .andWhere('schedule.status = :status', { status: 'active' })
+      .orderBy('schedule.startTime', 'ASC')
+      .getMany();
+  }
 }

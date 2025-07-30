@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -231,5 +232,14 @@ export class WebsocketGateway
         (error as Error).stack,
       );
     }
+  }
+
+  private getUserIdFromSocket(socketId: string): number | null {
+    for (const [userId, sockets] of this.userSocketMap.entries()) {
+      if (sockets.includes(socketId)) {
+        return userId;
+      }
+    }
+    return null;
   }
 }

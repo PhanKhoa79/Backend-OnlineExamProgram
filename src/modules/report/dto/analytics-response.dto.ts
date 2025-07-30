@@ -377,7 +377,7 @@ export interface ScoreStatisticsSummary {
     standardDeviation: number;
     scoreDistribution: {
       excellent: number; // 90-100 điểm
-      good: number; // 80-89 điểm  
+      good: number; // 80-89 điểm
       average: number; // 70-79 điểm
       belowAverage: number; // 60-69 điểm
       poor: number; // < 60 điểm
@@ -400,7 +400,10 @@ export interface ScoreStatisticsSummary {
   comparison: {
     averageScoreDifference: number; // Chênh lệch điểm TB (practice - official)
     performanceTrend: 'practice_better' | 'official_better' | 'similar'; // Xu hướng hiệu suất
-    consistencyComparison: 'practice_more_consistent' | 'official_more_consistent' | 'similar'; // So sánh độ ổn định
+    consistencyComparison:
+      | 'practice_more_consistent'
+      | 'official_more_consistent'
+      | 'similar'; // So sánh độ ổn định
   };
 }
 
@@ -475,4 +478,4 @@ export interface FailingStudentsResponseDto {
     endDate?: string;
     failureLevel?: string;
   };
-} 
+}
