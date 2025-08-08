@@ -8,8 +8,8 @@ import { RedisService } from './redis.service';
   providers: [
     {
       provide: 'REDIS_CLIENT',
-      useFactory: (configService: ConfigService) => {
-        const redis = new Redis(configService.get('REDIS_URL')!, {
+      useFactory: () => {
+        const redis = new Redis(process.env.REDIS_URL!, {
           showFriendlyErrorStack: true,
           retryStrategy: (times) => Math.min(times * 50, 2000),
         });
