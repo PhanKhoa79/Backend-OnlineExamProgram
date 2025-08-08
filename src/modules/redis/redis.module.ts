@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import { RedisService } from './redis.service';
 
 @Module({
@@ -7,11 +8,17 @@ import { RedisService } from './redis.service';
   providers: [
     {
       provide: 'REDIS_CLIENT',
-      useFactory: async (configService: ConfigService) => {
-        const Redis = require('ioredis');
-        const redis = new Redis({
-          host: configService.get('REDIS_HOST', 'localhost'),
-          port: configService.get('REDIS_PORT', 6379),
+      useFactory: (configService: ConfigService) => {
+        const redis = new Redis(configService.get('REDIS_URL')!, {
+          showFriendlyErrorStack: true,
+          retryStrategy: (times) => Math.min(times * 50, 2000),
+        });
+
+        redis.on('connect', () => {
+          console.log('Connected to Redis');
+        });
+        redis.on('error', (err) => {
+          console.error('Redis connection error:', err);
         });
 
         return redis;
