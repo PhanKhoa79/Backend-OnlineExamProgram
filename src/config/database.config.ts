@@ -1,13 +1,17 @@
 import { DataSourceOptions } from 'typeorm';
 import * as dotenv from 'dotenv';
 dotenv.config();
+
 export const databaseConfig: DataSourceOptions = {
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl:
+    process.env.NODE_ENV === 'production'
+      ? { rejectUnauthorized: false }
+      : false,
   entities: [__dirname + '/../database/entities/*.{ts,js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
   migrationsRun: true,
   synchronize: false,
-  logging: true,
+  logging: process.env.NODE_ENV !== 'production',
 };

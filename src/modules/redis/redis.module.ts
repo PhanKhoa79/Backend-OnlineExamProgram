@@ -8,17 +8,34 @@ import { RedisService } from './redis.service';
   providers: [
     {
       provide: 'REDIS_CLIENT',
-      useFactory: () => {
-        const redis = new Redis(process.env.REDIS_URL!, {
-          showFriendlyErrorStack: true,
-          retryStrategy: (times) => Math.min(times * 50, 2000),
-        });
+      useFactory: (configService: ConfigService) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const redisUrl = configService.get('REDIS_URL');
+
+        let redis: Redis;
+        if (redisUrl) {
+          // Railway production - sử dụng REDIS_URL
+          redis = new Redis(redisUrl, {
+            showFriendlyErrorStack: true,
+            retryStrategy: (times) => Math.min(times * 50, 2000),
+            maxRetriesPerRequest: 3,
+          });
+        } else {
+          // Development fallback
+          redis = new Redis({
+            host: configService.get('REDIS_HOST', 'localhost'),
+            port: configService.get('REDIS_PORT', 6379),
+            password: configService.get('REDIS_PASSWORD'),
+            showFriendlyErrorStack: true,
+            retryStrategy: (times) => Math.min(times * 50, 2000),
+          });
+        }
 
         redis.on('connect', () => {
-          console.log('Connected to Redis');
+          console.log('✅ Connected to Redis');
         });
         redis.on('error', (err) => {
-          console.error('Redis connection error:', err);
+          console.error('❌ Redis connection error:', err);
         });
 
         return redis;
