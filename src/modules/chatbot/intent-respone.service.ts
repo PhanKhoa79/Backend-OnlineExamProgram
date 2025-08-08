@@ -105,24 +105,6 @@ export class IntentChatResponseService extends UIChatResponseService {
           this.getTextResponseComponent([
             'Bạn vui lòng cung cấp thêm mã lớp, môn học để tôi có thể tìm lịch thi cho bạn.',
           ]),
-          {
-            payload: {
-              richContent: [
-                [
-                  {
-                    type: 'list',
-                    title: 'Bạn có thể nhập theo dạng:',
-                    items: [
-                      { text: '➤: Mã lớp là ABC, môn là Toán' },
-                      { text: '➤: ABC - Toán' },
-                      { text: '➤: Lớp ABC, môn Toán' },
-                      { text: '➤: ABC, Toán' },
-                    ],
-                  },
-                ],
-              ],
-            },
-          },
         ],
         outputContexts: outputContextName
           ? [{ name: fullContextName, lifespanCount: 1 }]
