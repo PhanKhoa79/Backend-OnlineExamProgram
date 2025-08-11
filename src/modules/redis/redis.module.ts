@@ -16,6 +16,7 @@ import { RedisService } from './redis.service';
         if (redisUrl) {
           // Railway production - sử dụng REDIS_URL
           redis = new Redis(redisUrl, {
+            family: 0,
             showFriendlyErrorStack: true,
             retryStrategy: (times) => Math.min(times * 50, 2000),
             maxRetriesPerRequest: 3,

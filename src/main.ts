@@ -8,14 +8,6 @@ import helmet from 'helmet';
 import * as bodyParser from 'body-parser';
 async function bootstrap() {
   // Debug environment variables
-  console.log('🔍 Environment Check:');
-  console.log('NODE_ENV:', process.env.NODE_ENV);
-  console.log(
-    'DATABASE_URL:',
-    process.env.DATABASE_URL ? 'SET ✅' : 'NOT SET ❌',
-  );
-  console.log('REDIS_URL:', process.env.REDIS_URL ? 'SET ✅' : 'NOT SET ❌');
-
   const app = await NestFactory.create(AppModule);
 
   app.use(bodyParser.json({ limit: '50mb' }));
@@ -103,6 +95,5 @@ async function bootstrap() {
 
   const port = process.env.PORT || 5000;
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Application running on port ${port}`);
 }
 bootstrap();
