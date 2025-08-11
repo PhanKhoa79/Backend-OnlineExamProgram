@@ -88,11 +88,6 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  // Health check endpoint
-  app.use('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-  });
-
   const port = process.env.PORT || 5000;
   await app.listen(port, '0.0.0.0');
 }
