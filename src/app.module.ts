@@ -38,6 +38,8 @@ import { ActivityLogInterceptor } from './common/interceptors/activity-log.inter
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ReportModule } from './modules/report/report.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
+import { HealthModule } from './modules/health/health.module';
+import { HealthController } from './modules/health/health.controller';
 
 const modules = [
   AuthModule,
@@ -84,8 +86,9 @@ const modules = [
       isGlobal: true,
       ttl: 600,
     }),
+    HealthModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     {
