@@ -22,9 +22,9 @@ FROM oven/bun:1.1.27 AS production
 # Set working directory
 WORKDIR /app
 
-# Create app user and group for security (moved up)
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
+# Create app user and group for security (Ubuntu/Debian syntax)
+RUN groupadd -r nodejs --gid=1001 && \
+  useradd -r -g nodejs --uid=1001 --shell=/bin/bash --create-home nestjs
 
 # Copy package files and lockfile
 COPY package*.json bun.lock ./
