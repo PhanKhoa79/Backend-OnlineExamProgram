@@ -106,7 +106,7 @@ export class AuthService {
     };
 
     return jwt.sign(payload, process.env.JWT_SECRET!, {
-      expiresIn: process.env.JWT_EXPIRES_IN,
+      expiresIn: process.env.JWT_EXPIRES_IN as string,
     });
   }
 
@@ -127,9 +127,11 @@ export class AuthService {
   async logout(accessToken: string, refreshToken: string) {
     try {
       const decoded: any = jwt.decode(accessToken);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const expiredAt = new Date(decoded.exp * 1000);
       await this.authRepository.blacklistAccessToken(accessToken, expiredAt);
     } catch (e) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       console.warn('Cannot decode access token to blacklist:', e.message);
     }
     await this.authRepository.removeRefreshToken(refreshToken);
