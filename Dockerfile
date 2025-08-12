@@ -19,13 +19,6 @@ RUN bun run build
 # Production stage
 FROM oven/bun:1.1.27 AS production
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
-
-# Create app user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nestjs -u 1001
-
 # Set working directory
 WORKDIR /app
 
@@ -44,6 +37,10 @@ COPY --from=builder --chown=nestjs:nodejs /app/src/modules/email/templates ./src
 # Create uploads directory
 RUN mkdir -p uploads && chown -R nestjs:nodejs uploads
 
+# Create app user for security
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nestjs -u 1001
+
 # Switch to non-root user
 USER nestjs
 
@@ -52,10 +49,7 @@ EXPOSE ${PORT:-5000}
 
 # Health check (customize to check application health)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-5000}/health || exit 1
-
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
+  CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Start the application
 CMD ["bun", "run", "dist/main.js"]
