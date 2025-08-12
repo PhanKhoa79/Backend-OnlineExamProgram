@@ -1,11 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notifications } from 'src/database/entities/Notifications';
+import { Notifications } from '../../database/entities/Notifications';
 import { WebsocketService } from '../websocket/websocket.service';
 import { RoleService } from '../role/role.service';
-import { Accounts } from 'src/database/entities/Accounts';
-import { ExamSchedule } from 'src/database/entities/ExamSchedule';
+import { Accounts } from '../../database/entities/Accounts';
+import { ExamSchedule } from '../../database/entities/ExamSchedule';
 
 @Injectable()
 export class NotificationService {
