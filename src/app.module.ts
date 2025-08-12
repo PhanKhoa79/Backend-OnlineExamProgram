@@ -75,7 +75,10 @@ const modules = [
         type: 'postgres',
         url: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false },
-        entities: [__dirname + '/database/entities/*.{js,ts}'],
+        entities: [
+          __dirname + '/database/entities/*.{js,ts}',
+          'dist/database/entities/*.{js,ts}',
+        ],
         synchronize: configService.get('DB_SYNC', 'false') === 'true',
         logging: configService.get('DB_LOGGING', 'false') === 'true',
       }),

@@ -8,6 +8,7 @@
   "type": "commonjs",
   "scripts": {
     "build": "nest build",
+    "build:railway": "nest build && cp -r src/database dist/ && cp -r src/modules/email/templates dist/modules/email/",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -114,3 +115,4 @@
     "testEnvironment": "node"
   }
 }
+
